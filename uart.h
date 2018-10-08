@@ -27,10 +27,17 @@ void uart_init();
 
 int uart_send_ibutton_data(uint8_t *ib_code);
 
-int uart_send_byte_data(uint8_t data);
+int uart_send_byte(uint8_t byte);
+
+uint8_t uart_get_byte();
 
 static void code_conversion(uint8_t *code, char *buffer);
 
-
+volatile extern uint8_t uart_rx_buffer_not_empty_flag;
+volatile extern uint8_t uart_rx_buffer_full;
+volatile extern uint8_t uart_rx_buffer_ovf_flag;
+volatile extern uint8_t uart_tx_buffer_not_empty_flag;
+volatile extern uint8_t uart_tx_buffer_full;
+volatile extern uint8_t uart_tx_buffer_ovf_flag;
 
 #endif /* UART_H_ */

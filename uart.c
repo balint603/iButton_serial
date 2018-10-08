@@ -9,15 +9,30 @@
 #include <msp430.h>
 #include <inttypes.h>
 #include <intrinsics.h>
+#include <string.h>
 
 #include "uart.h"
 
-typedef struct uart_data {
-                               uint8_t g_uart_data_buffer[16];
-                               volatile uint8_t g_uart_data_n;
-} uart_data_t;
+#define TX_SIZE 50
+#define RX_SIZE 200
 
-uart_data_t uart;
+typedef struct {
+    uint8_t data_buf[TX_SIZE];
+    uint16_t i_first;
+    uint16_t i_last;
+    uint16_t num_bytes;
+}buf_out_t;
+
+typedef struct {
+    uint8_t data_buf[RX_SIZE];
+    uint16_t i_first;
+    uint16_t i_last;
+    uint16_t num_bytes;
+}buf_in_t;
+
+buf_in_t buf_rx;
+buf_out_t buf_tx;
+
 
 
 void uart_init(){
@@ -33,7 +48,7 @@ void uart_init(){
 
 
     UCA0CTL1 &= ~UCSWRST;
-
+    IE2 |= UCA0RXIE;
 }
 
 /**
@@ -54,14 +69,14 @@ static void code_conversion(uint8_t *code, char *buffer){
     }
 }
 
-int uart_send_byte_data(uint8_t data){
+/*int uart_send_byte_data(uint8_t data){
     P1OUT |= BIT0;
     UCA0TXBUF = data;
     P1OUT &= ~BIT0;
     return 0;
-}
+}*/
 
-int uart_send_ibutton_data(uint8_t *ib_code){
+/*int uart_send_ibutton_data(uint8_t *ib_code){
     P1OUT |= BIT0;
     if(!ib_code){
 
@@ -87,17 +102,88 @@ int uart_send_ibutton_data(uint8_t *ib_code){
     P1OUT &= ~BIT0;
 
     return 0;
+}*/
+
+/*int uart_send_str(char *str){
+    P1OUT |= BIT0;
+
+    if(!str)
+        return -1;
+    int i;
+    for(i = 0; i < str[i] != '\0' && i < (OUTPUT_SIZE -1) ; i++)
+        uart.output_buf[i] = str[i];
+    uart.output_buf[i] = '\0';
+
+    uart.output_n = 1;
+    UCA0TXBUF = uart.output_buf[0];
+    IE2 |= UCA0TXIE;
+
+    P1OUT &= ~BIT0;
+    return 0;
+}*/
+
+int uart_send_byte(uint8_t byte){
+    __disable_interrupt();
+    if(buf_tx.num_bytes < TX_SIZE){
+        buf_tx.data_buf[buf_tx.i_last] = byte;
+        buf_tx.i_last++;
+        buf_tx.num_bytes++;
+    }else
+        return 1;
+
+    if(buf_tx.i_last == TX_SIZE)
+        buf_tx.i_last = 0;
+    IE2 |= UCA0TXIE;
+    __enable_interrupt();
+    return 0;
+}
+
+uint8_t uart_get_byte(){
+    __disable_interrupt();
+    uint8_t byte = 1;
+    if(buf_rx.num_bytes > 0){
+        byte = buf_rx.data_buf[buf_rx.i_first];
+        buf_rx.num_bytes--;
+        if(++buf_rx.i_first == RX_SIZE)
+            buf_rx.i_first = 0;
+    }
+    __enable_interrupt();
+    return byte;
 }
 
 #pragma vector=USCIAB0TX_VECTOR
 __interrupt void UART_TX_ISR(void){
     P1OUT |= BIT0;
-    if(uart.g_uart_data_n){
-        UCA0TXBUF = uart.g_uart_data_buffer[--uart.g_uart_data_n];
-    }else
-        IE2 &= ~UCA0TXIE;
+    if(buf_tx.num_bytes > 0){
+        UCA0TXBUF = buf_tx.data_buf[buf_tx.i_first];
+
+        if(buf_tx.i_first == (TX_SIZE-1))
+            buf_tx.i_first = 0;
+        else
+            buf_tx.i_first++;
+
+        if(--buf_tx.num_bytes == 0)
+            IE2 &= ~UCA0TXIE;
+    }
+
+
+
     P1OUT &= ~BIT0;
 }
 
+#pragma vector=USCIAB0RX_VECTOR
+__interrupt void UART_RX_ISR(void){
+    P1OUT |= BIT0;
+    if(buf_rx.num_bytes < RX_SIZE){
 
+        buf_rx.data_buf[buf_rx.i_last] = UCA0RXBUF;
+        buf_rx.i_last++;
+        buf_rx.num_bytes++;
+
+        if(buf_rx.i_last == RX_SIZE)
+                buf_rx.i_last = 0;
+    }else
+        UC0IFG  &= ~UCA0RXIFG;
+    P1OUT &= ~BIT0;
+}
 
