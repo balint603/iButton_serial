@@ -4,13 +4,16 @@
 
 #include "ibutton.h"
 #include "uart.h"
+#include "EEPROM.h"
 
-#define reader_polling_ms 50
+#define reader_polling_ms 20
 
 #define REL_PORT P2OUT
 #define REL_BIT BIT3
 #define REL_ON REL_PORT |= REL_BIT
 #define REL_OFF REL_PORT &= ~REL_BIT
+
+
 
 uint8_t stop_reading_flag;
 
@@ -106,8 +109,11 @@ void init_system_timer(){
 
 void init_ports(){
     P1DIR |= BIT0 + BIT6;
+    P2DIR |= BIT3 + BIT5;
     P1OUT &= ~(BIT0 + BIT6);
-    P2OUT &= ~(BIT2 + BIT1 + BIT0);
+    P2OUT &= ~(BIT5 + BIT4 + BIT2 + BIT1 + BIT0);
+
+
 }
 
 void super_M_mode(input_t next_input){
@@ -146,14 +152,18 @@ int main(void)
 
 	state.current_state = check_touch;
 
+	uint8_t data[] = {0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55};
+	uart_send_ibutton_data(data);
+
+
 	while(1){
 
-	    if(LED_flag){
-	        P1OUT ^= BIT6;
-	        LED_flag = 0;
-	    }
+	    if(reader_flag){
+	        key_read(data, 8, 0x0000);
+	        uart_send_ibutton_data(data);
 
-	    (state.current_state)(get_input());
+	        reader_flag = 0;
+	    }
 	}
 	return 0;
 }

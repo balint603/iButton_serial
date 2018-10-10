@@ -76,33 +76,14 @@ static void code_conversion(uint8_t *code, char *buffer){
     return 0;
 }*/
 
-/*int uart_send_ibutton_data(uint8_t *ib_code){
-    P1OUT |= BIT0;
-    if(!ib_code){
-
-        return -1;
+int uart_send_ibutton_data(uint8_t *ib_code){
+    uint8_t i;
+    for(i = 0; i < 8; i++){
+        if(uart_send_byte(*(ib_code+i)))
+                return 1;
     }
-
-    //code_conversion(ib_code, uart.g_uart_data_buffer);
-
-    int i;
-    for(i = 0; i < 8; i++)
-        uart.g_uart_data_buffer[i] = ib_code[7-i];
-
-    if(uart.g_uart_data_n){
-
-        return 1;
-
-    }
-
-    uart.g_uart_data_n = 7;
-
-    UCA0TXBUF = uart.g_uart_data_buffer[uart.g_uart_data_n];
-    IE2 |= UCA0TXIE;
-    P1OUT &= ~BIT0;
-
     return 0;
-}*/
+}
 
 /*int uart_send_str(char *str){
     P1OUT |= BIT0;
