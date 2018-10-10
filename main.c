@@ -7,7 +7,12 @@
 
 #define reader_polling_ms 50
 
+#define REL_PORT P2OUT
+#define REL_BIT BIT3
+#define REL_ON REL_PORT |= REL_BIT
+#define REL_OFF REL_PORT &= ~REL_BIT
 
+uint8_t stop_reading_flag;
 
 uint_fast16_t LED_ms = 100;
 volatile uint8_t LED_flag;
@@ -15,8 +20,66 @@ volatile uint8_t LED_flag;
 uint_fast16_t reader_ms = reader_polling_ms;
 volatile uint8_t reader_flag;
 
-uint_fast16_t command_interpret_ms = 1000;
-volatile uint8_t command_interpret_flag;
+uint_fast16_t timeout_ms = 1000;
+
+volatile uint16_t delay_ms;
+
+volatile uint8_t key_code[8];
+
+uint8_t super_M_key[] = {0x01,0x56,0xf1,0xbb,0x1a,0x00,0x00,0xef};
+
+/** State machine START*/
+#define N_STATE_INPUTS 10
+
+typedef enum inputs{
+    super_M_key_touch,
+    key_touch,
+    exit,
+    timeout,
+    no_input
+} input_t;
+
+typedef void ( *p_state_handler )( input_t next_input);
+
+typedef struct state_machine {
+    p_state_handler current_state;
+    uint8_t input;
+    uint8_t n_of_inputs;
+} state_machine_t;
+
+/** State functions */
+void check_touch(input_t next_input);
+void super_M_mode(input_t next_input);
+
+state_machine_t state = {
+                                .input = no_input,
+                                .n_of_inputs = 0
+                              };
+
+input_t inputs[N_STATE_INPUTS];
+
+
+input_t get_input(){
+
+    if(state.n_of_inputs){
+        state.n_of_inputs--;
+        return inputs[state.n_of_inputs];
+    }
+    else
+        return no_input;
+}
+
+void put_input(input_t new_input){
+
+    if(state.n_of_inputs !=  0 || state.n_of_inputs != N_STATE_INPUTS - 1){
+        inputs[state.n_of_inputs] = new_input;
+        state.n_of_inputs++;
+    }
+    else    // 0 or queue is full, overwrite IT!
+            inputs[state.n_of_inputs - 1] = new_input;
+}
+/** END */
+
 
 
 void init_clk(){
@@ -47,6 +110,23 @@ void init_ports(){
     P2OUT &= ~(BIT2 + BIT1 + BIT0);
 }
 
+void super_M_mode(input_t next_input){
+    switch(next_input){
+    case super_M_key_touch:
+        state.current_state = check_touch;
+        LED_TURN_OFF_RE;
+    }
+
+}
+
+void check_touch(input_t next_input){
+    switch(next_input){
+    case super_M_key_touch:
+        state.current_state = super_M_mode;
+        LED_TURN_ON_RE;
+    }
+}
+
 /**
  * Test Reading function.
  * It gets the button key and write it to serial port with USCI in every defined ms.
@@ -64,7 +144,7 @@ int main(void)
 
 	__enable_interrupt();
 
-	uint8_t ib_data[8];
+	state.current_state = check_touch;
 
 	while(1){
 
@@ -73,25 +153,7 @@ int main(void)
 	        LED_flag = 0;
 	    }
 
-	    if(command_interpret_flag){
-	        switch ( uart_get_byte() ){
-	        case 'o':
-	            LED_TURN_OFF_RE;
-	            uint8_t i;
-	            char msg[] = "RED switched off.";
-	            for(i = 0; i < sizeof(msg); i++)
-	                uart_send_byte(msg[i]);
-	            break;
-
-	        case 'i':
-	            LED_TURN_ON_RE;
-	            uint8_t k;
-	            char msg2[] = "RED switched on.";
-	            for(k = 0; k < sizeof(msg2); k++)
-	                uart_send_byte(msg2[k]);
-	            break;
-	        }
-	    }
+	    (state.current_state)(get_input());
 	}
 	return 0;
 }
@@ -110,9 +172,12 @@ __interrupt void Timer0_A0_ISR(void){
         reader_flag = 1;
         reader_ms = reader_polling_ms;
     }
-
-    if(!(--command_interpret_ms)){
-        command_interpret_flag = 1;
-        command_interpret_ms = 10;
+    if(!(--timeout_ms)){
+        put_input(timeout);
+        timeout_ms = 30000;
     }
+    if(!(--delay_ms)){
+        stop_reading_flag = 0;
+    }
+
 }
