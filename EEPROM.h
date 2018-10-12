@@ -23,7 +23,7 @@
 #define SCL_PIN BIT5
 #define SCL_PORT_OUT P2OUT
 
-#define BIT_TIME 2.5
+#define BIT_TIME 50
 
 void EEPROM_init();
 
