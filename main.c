@@ -148,37 +148,33 @@ int main(void)
     uart_init();
     ibutton_init();
 
-	__enable_interrupt();
-
 	state.current_state = check_touch;
 
-	uint8_t data[] = {0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x33};
+	uint8_t data[] = {0x01, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x33};
 	uint8_t data2[] = {0xCA, 0xFE, 0xBE, 0xEF, 0xBE, 0xEF, 0xCA, 0x33};
 
-//	EEPROM_clear_ff();
-//	int i;
-//	for(i=10; i>0;i--)
-//	    __delay_cycles(12000);
 	uint16_t addr;
 	addr = 0;
 
-	/*if( !EEPROM_get_key_or_empty_place(data2, &addr, EEPROM_MASTER_KEY_PLACE - 8, 0) )
-	    P1OUT |= BIT6;
+	EEPROM_key_write(data, 0x0000);
+	__enable_interrupt();
 
-	uart_send_byte((uint8_t)addr);
-	addr >>= 8;
-	uart_send_byte((uint8_t)addr);
-*/
 	uint16_t ret;
+	addr = 0;
 	while(1){
 
 	    if(LED_flag){
-	       // P1OUT ^= BIT6;
-	        addr = 0;
+
+	       /* addr = 1024;
 	        ret = (EEPROM_get_key_or_empty_place(data2, &addr, EEPROM_MASTER_KEY_PLACE - 8, 0));
 	        uart_send_byte(ret);
-	        ret >>= 8;
+	        uart_send_byte(addr);
+	        uart_send_byte(addr>>8);*/
+	        ret = EEPROM_get_key_or_empty_place(data, &addr, EEPROM_MASTER_KEY_PLACE - 8, 0);
 	        uart_send_byte(ret);
+	        uart_send_byte(ret>>8);
+	        uart_send_byte(addr);
+	        uart_send_byte(addr>>8);
 	        LED_flag = 0;
 	    }
 	}

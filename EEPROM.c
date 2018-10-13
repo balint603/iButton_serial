@@ -35,25 +35,46 @@ static void read_byte(uint8_t *byte);
 
 const uint8_t write_command = 0b10100000;
 
+
+/**
+ * This function must be called first start of the system.
+ * It writes 0xFF to all bytes.
+ * Uses EEPROM acknowledgment polling, after 5s of unsuccessful acknowledge inquiry returns 1.
+ * ret 0 when cleared
+ * ret 1 when polling the EEPROM is failed.
+ * */
 int EEPROM_clear_ff(){
 
     uint8_t datasize = EEPROM_SIZE_OF_PAGE;
     uint16_t page_cnt = EEPROM_N_OF_PAGES;
+    uint16_t addr = 0;
+    uint16_t addr_MSB = 0;
+    uint8_t tmp;
+    uint16_t cnt = 5000;
+
     while(page_cnt-- > 0){
-        SCL_0;
-        START_BIT;
-        shift_byte(write_command);                           // DEVICE ADDRESS
-        ACK_CHECK(1);
-        shift_byte(0);                // ADDRESS
+        do{
+            wait_us(1000);
+            if(!cnt--)
+                return 1;
+            START_BIT;
+            shift_byte(write_command);                           // DEVICE ADDRESS
+            SCL_0; SDA_1; wait_us(BIT_TIME); SCL_1; wait_us(BIT_TIME/2); tmp = GET_INPUT; wait_us(BIT_TIME/2);
+        } while (tmp);
+        shift_byte((uint8_t)addr_MSB);                // ADDRESS
         ACK_SKIP;
-        shift_byte(0);
+        shift_byte((uint8_t)addr);
         ACK_SKIP;
         while(datasize-- > 0){
           shift_byte(0xFF);
-          ACK_SKIP;
+          ACK_CHECK(2);
         }
         STOP_BIT;
         SCL_0;
+        addr += 64;
+        addr_MSB = addr;
+        addr_MSB >>= 8;
+        cnt = 5000;
     }
     return 0;
 }
@@ -174,7 +195,7 @@ int EEPROM_key_read(uint8_t *data, uint16_t address){
     SCL_0;
     return 0;
 }
-
+/** Working, need more test */
 uint16_t EEPROM_get_key_or_empty_place(uint8_t *key_code, uint16_t *addr, uint16_t addr_limit, uint8_t reading_dir){
     if(addr_limit >= EEPROM_MASTER_KEY_PLACE)
         return 0xFFFC;
@@ -190,7 +211,7 @@ uint16_t EEPROM_get_key_or_empty_place(uint8_t *key_code, uint16_t *addr, uint16
     uint16_t addr_MS_byte = *addr;
         addr_MS_byte >>= 8;
 
-    uint8_t free_byte_cnt, key_cmp_cnt, i;
+    uint8_t free_byte_cnt, key_cmp_cnt;
     uint8_t byte;
 
     START_BIT;
@@ -210,12 +231,12 @@ uint16_t EEPROM_get_key_or_empty_place(uint8_t *key_code, uint16_t *addr, uint16
         free_byte_cnt = 0;
         key_cmp_cnt = 0;
 
-        for(i = 8; i > 0; i--){
+        for(i=8; i > 0; i--){
             read_byte(&byte);
             ACK_CREATE;
-            if((byte) == (*(key_code+8-i)))
+            if(byte == (*(key_code+8-i)))
                 key_cmp_cnt++;
-            if((byte) == 0xFF)
+            if(byte == 0xFF)
                 free_byte_cnt++;
         }
         if(key_cmp_cnt == 8)

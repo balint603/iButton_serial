@@ -21,7 +21,7 @@
 #define EEPROM_SIZE 32              /**  KB */
 
 #define EEPROM_MASTER_KEY_PLACE 32760
-#define EEPROM_N_OF_PAGES 4096
+#define EEPROM_N_OF_PAGES 512
 #define EEPROM_SIZE_OF_PAGE 64
 
 #define SCL_PIN BIT5
