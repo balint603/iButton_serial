@@ -17,7 +17,7 @@
 
 uint8_t stop_reading_flag;
 
-uint_fast16_t LED_ms = 100;
+uint_fast16_t LED_ms = 5000;
 volatile uint8_t LED_flag;
 
 uint_fast16_t reader_ms = reader_polling_ms;
@@ -152,17 +152,34 @@ int main(void)
 
 	state.current_state = check_touch;
 
-	uint8_t data[] = {0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55};
-	uart_send_ibutton_data(data);
+	uint8_t data[] = {0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x33};
+	uint8_t data2[] = {0xCA, 0xFE, 0xBE, 0xEF, 0xBE, 0xEF, 0xCA, 0x33};
 
+//	EEPROM_clear_ff();
+//	int i;
+//	for(i=10; i>0;i--)
+//	    __delay_cycles(12000);
+	uint16_t addr;
+	addr = 0;
 
+	/*if( !EEPROM_get_key_or_empty_place(data2, &addr, EEPROM_MASTER_KEY_PLACE - 8, 0) )
+	    P1OUT |= BIT6;
+
+	uart_send_byte((uint8_t)addr);
+	addr >>= 8;
+	uart_send_byte((uint8_t)addr);
+*/
+	uint16_t ret;
 	while(1){
 
-	    if(reader_flag){
-	        key_read(data, 8, 0x0000);
-	        uart_send_ibutton_data(data);
-
-	        reader_flag = 0;
+	    if(LED_flag){
+	       // P1OUT ^= BIT6;
+	        addr = 0;
+	        ret = (EEPROM_get_key_or_empty_place(data2, &addr, EEPROM_MASTER_KEY_PLACE - 8, 0));
+	        uart_send_byte(ret);
+	        ret >>= 8;
+	        uart_send_byte(ret);
+	        LED_flag = 0;
 	    }
 	}
 	return 0;
@@ -176,7 +193,7 @@ __interrupt void Timer0_A0_ISR(void){
 
     if(!(--LED_ms)){
         LED_flag = 1;
-        LED_ms = 100;
+        LED_ms = 5000;
     }
     if(!(--reader_ms)){
         reader_flag = 1;
