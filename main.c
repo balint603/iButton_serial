@@ -17,7 +17,7 @@
 
 uint8_t stop_reading_flag;
 
-uint_fast16_t LED_ms = 5000;
+uint_fast16_t LED_ms = 500;
 volatile uint8_t LED_flag;
 
 uint_fast16_t reader_ms = reader_polling_ms;
@@ -112,8 +112,6 @@ void init_ports(){
     P2DIR |= BIT3 + BIT5;
     P1OUT &= ~(BIT0 + BIT6);
     P2OUT &= ~(BIT5 + BIT4 + BIT2 + BIT1 + BIT0);
-
-
 }
 
 void super_M_mode(input_t next_input){
@@ -134,9 +132,7 @@ void check_touch(input_t next_input){
 }
 
 /**
- * Test Reading function.
- * It gets the button key and write it to serial port with USCI in every defined ms.
- * Currently no CRC is working.
+ *
  */
 int main(void)
 {
@@ -156,25 +152,16 @@ int main(void)
 	uint16_t addr;
 	addr = 0;
 
-	EEPROM_key_write(data, 0x0000);
 	__enable_interrupt();
 
-	uint16_t ret;
+	uint8_t byte;
 	addr = 0;
+
+
 	while(1){
-
 	    if(LED_flag){
-
-	       /* addr = 1024;
-	        ret = (EEPROM_get_key_or_empty_place(data2, &addr, EEPROM_MASTER_KEY_PLACE - 8, 0));
-	        uart_send_byte(ret);
-	        uart_send_byte(addr);
-	        uart_send_byte(addr>>8);*/
-	        ret = EEPROM_get_key_or_empty_place(data, &addr, EEPROM_MASTER_KEY_PLACE - 8, 0);
-	        uart_send_byte(ret);
-	        uart_send_byte(ret>>8);
-	        uart_send_byte(addr);
-	        uart_send_byte(addr>>8);
+	        uart_send_ibutton_data(data2, 1);
+	        P1OUT ^= BIT6;
 	        LED_flag = 0;
 	    }
 	}
@@ -189,7 +176,7 @@ __interrupt void Timer0_A0_ISR(void){
 
     if(!(--LED_ms)){
         LED_flag = 1;
-        LED_ms = 5000;
+        LED_ms = 500;
     }
     if(!(--reader_ms)){
         reader_flag = 1;

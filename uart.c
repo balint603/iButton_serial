@@ -52,21 +52,23 @@ void uart_init(){
 }
 
 /**
- *  code_example[] = {0x01,0x55,0xf4,0x45,0xe5,0x3a,0x33,0x30}
+ *  Hex byte to ASCII conversion.
  * */
-static void code_conversion(uint8_t *code, char *buffer){
-    int i;
+void hex_byte_to_char(uint8_t code, char *MSB, char *LSB){
     uint8_t byte_upper;
     uint8_t byte_lower = 0;
 
-    for(i = 0; i < 8; i++){
-        byte_upper = *(code+i);
-        byte_lower = byte_upper & 0x0F;
-        byte_upper >>= 4;
-
-        *(buffer+15-i) = byte_upper;
-        *(buffer+14-i) = byte_lower;
-    }
+    byte_upper = code;
+    byte_upper >>= 4;
+    byte_lower = code & 0x0F;
+    if(byte_upper < 10)
+        *MSB = byte_upper + '0';
+    else
+        *MSB = byte_upper + 'A' - 10;
+    if(byte_upper < 10)
+            *LSB = byte_lower + '0';
+    else
+        *LSB = byte_lower + 'A' - 10;
 }
 
 /*int uart_send_byte_data(uint8_t data){
@@ -75,34 +77,60 @@ static void code_conversion(uint8_t *code, char *buffer){
     P1OUT &= ~BIT0;
     return 0;
 }*/
-
-int uart_send_ibutton_data(uint8_t *ib_code){
+/**
+ *  iButton data sending function with mode of ASCII or unsigned integer.
+ * \param ib_code is a pointer to a 8 byte iButton data.
+ * \param send_as_string is a lever: when not zero, the data will be sent as ASCII characters.
+ * \return 1 if ib_code is NULL else return 0
+ * */
+int uart_send_ibutton_data(uint8_t *ib_code, uint8_t send_as_string){
     uint8_t i;
-    for(i = 0; i < 8; i++){
-        if(uart_send_byte(*(ib_code+i)))
-                return 1;
+    P1OUT |= BIT0;
+    if(!ib_code)
+        return 1;
+
+    if(!send_as_string){
+        for(i = 0; i < 8; i++){
+            if(uart_send_byte(*(ib_code+i)))
+                    return 1;
+        }
     }
+    else{
+        char MSB, LSB;
+        for(i = 0; i < 8; i++){
+
+            hex_byte_to_char(*(ib_code+i), &MSB, &LSB);
+            uart_send_byte(MSB);
+            uart_send_byte(LSB);
+        }
+    }
+
     return 0;
 }
-
-/*int uart_send_str(char *str){
-    P1OUT |= BIT0;
+/**
+ *  Send string via UART.
+ * */
+int uart_send_str(char *str, uint8_t new_line){
 
     if(!str)
         return -1;
-    int i;
-    for(i = 0; i < str[i] != '\0' && i < (OUTPUT_SIZE -1) ; i++)
-        uart.output_buf[i] = str[i];
-    uart.output_buf[i] = '\0';
+    uint8_t i;
+    for(i = 0; *(str+i) != '\0'; i++){
+        if(i >= TX_SIZE)
+            return 1;
+        uart_send_byte(*(str+i));
+    }
+    uart_send_byte(*(str+i));       // char array end
+    if(new_line){
+        uart_send_byte('\n');
+        uart_send_byte('\r');
+    }
 
-    uart.output_n = 1;
-    UCA0TXBUF = uart.output_buf[0];
-    IE2 |= UCA0TXIE;
-
-    P1OUT &= ~BIT0;
     return 0;
-}*/
-
+}
+/**
+ *  Send only one byte.
+ */
 int uart_send_byte(uint8_t byte){
     __disable_interrupt();
     if(buf_tx.num_bytes < TX_SIZE){
