@@ -21,6 +21,8 @@
 
 void uart_init();
 
+uint16_t uart_get_buffer_bytes();
+
 int uart_send_ibutton_data(uint8_t *ib_code, uint8_t send_as_string);
 
 int uart_send_byte(uint8_t byte);

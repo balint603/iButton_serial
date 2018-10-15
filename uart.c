@@ -62,10 +62,14 @@ void hex_byte_to_char(uint8_t code, char *MSB, char *LSB){
         *MSB = byte_upper + '0';
     else
         *MSB = byte_upper + 'A' - 10;
-    if(byte_upper < 10)
+    if(byte_lower < 10)
             *LSB = byte_lower + '0';
     else
         *LSB = byte_lower + 'A' - 10;
+}
+
+uint16_t uart_get_buffer_bytes(){
+    return buf_rx.num_bytes;
 }
 
 /*int uart_send_byte_data(uint8_t data){
@@ -146,10 +150,12 @@ int uart_send_byte(uint8_t byte){
 
 uint8_t uart_get_byte(){
     __disable_interrupt();
-    uint8_t byte = 1;
+    uint8_t byte = 0;
     if(buf_rx.num_bytes > 0){
         byte = buf_rx.data_buf[buf_rx.i_first];
-        buf_rx.num_bytes--;
+        if(--buf_rx.num_bytes)
+            uart_rx_buffer_not_empty_flag = 0;
+
         if(++buf_rx.i_first == RX_SIZE)
             buf_rx.i_first = 0;
     }
@@ -190,6 +196,7 @@ __interrupt void UART_RX_ISR(void){
                 buf_rx.i_last = 0;
     }else
         UC0IFG  &= ~UCA0RXIFG;
+    uart_rx_buffer_not_empty_flag = 1;
     P1OUT &= ~BIT0;
 }
 
