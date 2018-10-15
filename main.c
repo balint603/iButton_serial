@@ -13,10 +13,6 @@
 #define REL_ON REL_PORT |= REL_BIT
 #define REL_OFF REL_PORT &= ~REL_BIT
 
-
-
-uint8_t stop_reading_flag;
-
 uint_fast16_t LED_ms = 500;
 volatile uint8_t LED_flag;
 
@@ -79,7 +75,7 @@ void put_input(input_t new_input){
         state.n_of_inputs++;
     }
     else    // 0 or queue is full, overwrite IT!
-            inputs[state.n_of_inputs - 1] = new_input;
+            inputs[state.n_of_inputs - 1] = new_input;  // ?
 }
 /** END */
 
@@ -100,7 +96,7 @@ void init_clk(){
 void init_system_timer(){
 
     /**
-     * System Timer (1ms), LCD refreshing TIMING.
+     * System Timer (1ms)
      * */
     TACCR0 = 11999;
     TACTL = MC_1 | ID_0 |TASSEL_2 | TACLR;
@@ -114,6 +110,8 @@ void init_ports(){
     P2OUT &= ~(BIT5 + BIT4 + BIT2 + BIT1 + BIT0);
 }
 
+
+/** STATE FUNCTIONS START_____________________________________________________________________________________________ */
 void super_M_mode(input_t next_input){
     switch(next_input){
     case super_M_key_touch:
@@ -130,6 +128,7 @@ void check_touch(input_t next_input){
         LED_TURN_ON_RE;
     }
 }
+/** STATE FUNCTIONS END_________________________________________________________________________________________________ */
 
 /**
  *
@@ -146,23 +145,39 @@ int main(void)
 
 	state.current_state = check_touch;
 
-	uint8_t data[] = {0x01, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x33};
-	uint8_t data2[] = {0xCA, 0xFE, 0xBE, 0xEF, 0xBE, 0xEF, 0xCA, 0x33};
-
-	uint16_t addr;
-	addr = 0;
+	uint8_t super_M_key[] = {0x01, 0xCA, 0xFE, 0xBE, 0xEF, 0xAB, 0xCD, 0xEF};
 
 	__enable_interrupt();
 
-	uint8_t byte;
-	addr = 0;
+	uint16_t ret;
+	uint16_t ret_H;
 
+	uint16_t addr = 0;
+	uint16_t addr_H;
 
+	uint16_t ff_addr = 0;
+	uint16_t ff_addr_H = 0;
+
+	//EEPROM_key_write(data2, 16);
+	ret = EEPROM_get_key_or_empty_place(data2, &addr, &ff_addr, EEPROM_MASTER_KEY_PLACE-8, 0);
+	ret_H = ret >> 8;
+	addr_H = addr >> 8;
+	ff_addr_H = ff_addr >> 8;
+//	int a = 0;
 	while(1){
 	    if(LED_flag){
-	        uart_send_ibutton_data(data2, 1);
 	        P1OUT ^= BIT6;
 	        LED_flag = 0;
+
+	            uart_send_byte((uint8_t)ret_H);
+	            uart_send_byte((uint8_t)ret);
+	            uart_send_byte((uint8_t)addr_H);
+	            uart_send_byte((uint8_t)addr);
+	            uart_send_byte((uint8_t)ff_addr_H);
+	            uart_send_byte((uint8_t)ff_addr);
+	        /*EEPROM_key_read(data, a);
+	        uart_send_ibutton_data(data, 0);
+	        a += 8;*/
 	    }
 	}
 	return 0;
@@ -186,8 +201,4 @@ __interrupt void Timer0_A0_ISR(void){
         put_input(timeout);
         timeout_ms = 30000;
     }
-    if(!(--delay_ms)){
-        stop_reading_flag = 0;
-    }
-
 }

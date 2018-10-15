@@ -13,9 +13,6 @@
 
 #include "uart.h"
 
-#define TX_SIZE 50
-#define RX_SIZE 200
-
 typedef struct {
     uint8_t data_buf[TX_SIZE];
     uint16_t i_first;

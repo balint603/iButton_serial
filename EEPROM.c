@@ -233,14 +233,18 @@ int EEPROM_read_byte(uint8_t *byte, uint16_t address){
 /**
  *  Search the key in the EEPROM or get free space if it was not found.
  *  \todo data end flag? First byte of the keys are always 0x01.
- *  \ret 0 *addr points to a free space from now.
- *  \ret 1 *addr points to the address of the found key_code from now.
+ *  \param *key_code is the data to be find in the EEPROM.
+ *  \param *addr Search from this address, key address will be in this variable when key had been found.
+ *  \param addr_limit Max address.
+ *  \param reading dir: Function not implemented yet.
+ *  \ret 0 NO KEY FOUND.
+ *  \ret 1 KEY FOUND.
  *  \ret 0xFFFC addr_limit is too high.
  *  \ret 0xFFFE when *addr is out of addr_limit.
  *  \ret 0xFFFD when EEPROM does not responds with acknowledgment bit after first command.
  * */
-uint16_t EEPROM_get_key_or_empty_place(uint8_t *key_code, uint16_t *addr, uint16_t addr_limit, uint8_t reading_dir){
-    if(addr_limit >= EEPROM_MASTER_KEY_PLACE)
+uint16_t EEPROM_get_key_or_empty_place(uint8_t *key_code, uint16_t *addr, uint16_t *first_free_addr, uint16_t addr_limit, uint8_t reading_dir){
+    if(addr_limit >= EEPROM_MASTER_KEY_PLACE)           // check ptrs.
         return 0xFFFC;
     if(reading_dir){
         if(*addr < addr_limit)
@@ -254,8 +258,10 @@ uint16_t EEPROM_get_key_or_empty_place(uint8_t *key_code, uint16_t *addr, uint16
     uint16_t addr_MS_byte = *addr;
         addr_MS_byte >>= 8;
 
-    uint8_t free_byte_cnt, key_cmp_cnt;
+    uint8_t key_cmp_cnt;
     uint8_t byte;
+
+    *first_free_addr = 1;
 
     START_BIT;
     shift_byte(write_command);
@@ -270,26 +276,34 @@ uint16_t EEPROM_get_key_or_empty_place(uint8_t *key_code, uint16_t *addr, uint16
     ACK_CHECK(0xFFFD);
 
     while(*addr < addr_limit){
-        uint8_t i;
-        free_byte_cnt = 0;
-        key_cmp_cnt = 0;
+        read_byte(&byte);
+        ACK_CREATE;
 
-        for(i=8; i > 0; i--){
+        uint8_t i;
+        key_cmp_cnt = 7;
+
+        if(byte != 0x01){
+            if(byte == 0xFF){
+                return 0;
+            }
+            else if(*first_free_addr == 1){
+                *first_free_addr = *addr;
+            }
+        }
+                         // When the first byte is equal to family code: 0x01, start a byte compare routine.
+
+        for(i = 7; i > 0; i--){
             read_byte(&byte);
             ACK_CREATE;
-            if(byte == (*(key_code+8-i)))
-                key_cmp_cnt++;
-            if(byte == 0xFF)
-                free_byte_cnt++;
+            if(byte == *(key_code+8-i))
+                key_cmp_cnt--;
         }
-        if(key_cmp_cnt == 8)
-            return 1;               // KEY code found
-        if(free_byte_cnt == 8)
-            return 0;
-        if(reading_dir)
-            ;//*addr -= 8; FUNCTION NOT IMPLEMENTED
-        else
-            *addr += 8;
+
+        if(!key_cmp_cnt)
+            return 1;
+
+
+        (*addr) += 8;  // First byte of the next key in memory.
     }
     return 0xFFFF;
 }

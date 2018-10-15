@@ -58,7 +58,7 @@ void ibutton_init(){
 
 
 /**
- *  Test if an iButton device is connected to the reader or not. It mostly filters the short circuit.
+ *  Test if an iButton device is connected to the reader or not. It filters the short circuit.
  *
  *  \ret 0 when the input level was low before reset pulse send, or no answer after reset pulse. (See one-wire protocol).
  *  \ret 1 when the input had been pulled down only after the reset pulse, in this case this function assumes that an iButton device had given a presence pulse.
@@ -78,9 +78,9 @@ int ibutton_test_presence(){
 }
 /**
  * Read the iButton ROM into the input buffer.
- * This function must be called, when an iButton has been just connected to the reader.
- * \param uint8_t *data must be a buffer, with 8 byte size.
- * \ret 0 when the computed crc equals the MSB from the ROM data OR equals 01h (iButton family code).
+ * This function must be called, when an iButton has just been connected to the reader.
+ * \param uint8_t *data must be a buffer, with size of 8 byte.
+ * \ret 0 when the computed crc equals the MSB from the ROM data and LSB equals 01h (iButton family code).
  * \ret 1 when the computed crc OR the family code does not match.
  * */
 int ibutton_read_it(uint8_t *data){
