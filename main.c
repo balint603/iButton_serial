@@ -8,7 +8,7 @@
 
 #define reader_polling_ms 20
 
-#define REL_PORT_DIR P2OUT
+#define REL_PORT_DIR P2DIR
 #define REL_BIT BIT3
 #define REL_ON REL_PORT_DIR |= REL_BIT
 #define REL_OFF REL_PORT_DIR &= ~REL_BIT
@@ -31,8 +31,6 @@ volatile uint8_t key_code[8];
 uint8_t super_M_key[] = {0x01,0x56,0xf1,0xbb,0x1a,0x00,0x00,0xef};
 
 uint8_t M_key[] = {0x01,0x56,0xf1,0xbb,0x1a,0x00,0x00,0xef};
-
-uint8_t deleted_key[] = {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
 
 /** State machine START*/
 #define N_STATE_INPUTS 10
@@ -123,10 +121,13 @@ void init_ports(){
 
 void open_relay(input_t next_input){
     REL_ON;
+    LED_TURN_OFF_GR;
     switch(next_input){
     case timeout:
         REL_OFF;
+        LED_TURN_ON_GR;
         state.current_state = check_touch;
+        uart_send_str("RELAY=OFF", 1);
     }
 }
 
@@ -136,47 +137,83 @@ void master_mode(input_t next_input){
     uint8_t i;
     uint16_t addr = 0;
     uint16_t addr_ff = 0;
+    uint8_t deleted_key[] = {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+
+    uint16_t ret = 0;
+    char ch_a[] = "qq";
+
 
     if(uart_get_buffer_bytes() >= 8){
         for(i = 8; i > 0; i--)
             data[8-i] = uart_get_byte();
-        switch(EEPROM_get_key_or_empty_place(data, &addr, &addr_ff, 256, 0)){
+        switch(ret = EEPROM_get_key_or_empty_place(data, &addr, &addr_ff, 256, 0)){
         case 0:
-            EEPROM_key_write(data, addr_ff);
+            if(EEPROM_key_write(data, addr_ff))
+                uart_send_str("COM ERROR",1);
             __delay_cycles(60000);
             __delay_cycles(60000);
             EEPROM_key_read(data_r, addr_ff);
-            for(i = 8; i > 0 && data_r[8-i] == data[8-i]; i--)
+            for(i = 7; i > 0 && data_r[i] == data[i]; i--)
                 ;
-            if(!i){
-                uart_send_str("ERROR: EEPROM WRITE", 1);
+            if(i){
+                uart_send_str("ERROR: WRITE INTO FREE SPACE", 1);
             }
             else{
-                uart_send_str("KEY SUCCESFULLY ADDED", 1);
+                uart_send_str("KEY SUCCESSFULLY ADDED", 1);
             }
             LED_TURN_ON_GR;
             LED_TURN_OFF_RE;
             state.current_state = check_touch;
+
+
+            uart_send_str("debug info start>", 1);
+            hex_byte_to_char(addr, &ch_a[0], &ch_a[1]);
+            uart_send_str(ch_a, 1);
+            hex_byte_to_char(addr_ff, &ch_a[0], &ch_a[1]);
+            uart_send_str(ch_a, 1);
+            hex_byte_to_char((uint8_t)ret, &ch_a[0], &ch_a[1]);
+            uart_send_str(ch_a, 1);
+            uart_send_str("<debug info end", 1);
+
+
+
             break;
+
         case 1:
-            EEPROM_key_write(deleted_key, addr);
+
+            uart_send_str("debug info start>", 1);
+            hex_byte_to_char(addr, &ch_a[0], &ch_a[1]);
+            uart_send_str(ch_a, 1);
+            hex_byte_to_char(addr_ff, &ch_a[0], &ch_a[1]);
+            uart_send_str(ch_a, 1);
+            hex_byte_to_char((uint8_t)ret, &ch_a[0], &ch_a[1]);
+            uart_send_str(ch_a, 1);
+            uart_send_str("<debug info end", 1);
+
+            if(EEPROM_key_write(deleted_key, addr))
+                uart_send_str("COM error", 1);
+
             __delay_cycles(60000);
             __delay_cycles(60000);
             EEPROM_key_read(data_r, addr);
-            for(i = 8; i > 0 && deleted_key[8-i] == data_r[8-i]; i--)
+            for(i = 7; i > 0 && deleted_key[i] == data_r[i]; i--)
                 ;
-            if(!i)
-                uart_send_str("ERROR: EEPROM WRITE", 1);
-            else
-                uart_send_str("KEY SUCCESFULLY DELETED", 1);
+            if(i)
+                uart_send_str("ERROR: WRITE INTO KEY", 1);
+            else{
+                uart_send_str("KEY SUCCESSFULLY DELETED", 1);
+            }
             LED_TURN_ON_GR;
             LED_TURN_OFF_RE;
             state.current_state = check_touch;
             break;
         default:
             uart_send_str("EEPROM ERROR", 1);
+            uart_send_byte((uint8_t)ret);
         }
     }
+
+
     switch(next_input){
     case timeout:
         state.current_state = check_touch;
@@ -211,6 +248,37 @@ void wait_for_master_key(input_t next_input){
         }else
             state.current_state = check_touch;
     }
+
+}
+
+void add_master_key(input_t next_input){
+    LED_TURN_ON_RE;
+    LED_TURN_OFF_GR;
+    uint8_t data[8];
+    if(ibutton_test_presence()){
+        if(!ibutton_read_it(data)){
+            EEPROM_key_write(data, EEPROM_MASTER_KEY_PLACE);
+            __delay_cycles(60000);
+            __delay_cycles(60000);
+
+            if(EEPROM_key_read(M_key, EEPROM_MASTER_KEY_PLACE))
+                uart_send_str("EEPROM read error.", 1);
+            else{
+                uart_send_ibutton_data(M_key, 1);
+                uart_send_str("is master", 1);
+            }
+
+            int i;
+            for(i=7; i>0 && data[i] == M_key[i]; i--)
+                ;
+            if(i)
+                uart_send_str("ADD M_key error!", 1);
+
+            state.current_state = check_touch;
+            LED_TURN_OFF_RE;
+            LED_TURN_ON_GR;
+        }
+    }
 }
 
 void check_touch(input_t next_input){
@@ -224,38 +292,37 @@ void check_touch(input_t next_input){
                 state.current_state = open_relay;
                 timeout_ms = 5000;
                 REL_ON;
+                uart_send_str("RELAY=ON", 1);
             }
         }
     }
     else if(uart_rx_buffer_not_empty_flag){
-        if('M' == uart_get_byte())
+        switch (uart_get_byte()){
+        case 'M':
             LED_TURN_OFF_GR;
             state.current_state = wait_for_master_key;
             timeout_ms = 60000;
             uart_send_str("Please send/touch master key!", 1);
-    }
-}
-
-void add_master_key(input_t next_input){
-    LED_TURN_ON_RE;
-    LED_TURN_OFF_GR;
-    uint8_t data[8];
-    if(ibutton_test_presence()){
-        if(!ibutton_read_it(data)){
-            EEPROM_key_write(data, EEPROM_MASTER_KEY_PLACE);
-            // \todo RECHECK MEM!
+            break;
+        case 'C':
+            EEPROM_clear_ff();
             uart_send_str("Please touch a master key.", 1);
-            state.current_state = check_touch;
-            LED_TURN_OFF_RE;
-            LED_TURN_ON_GR;
+            state.current_state = add_master_key;
+            break;
         }
     }
 }
+
 /** STATE FUNCTIONS END_________________________________________________________________________________________________ */
 
 /**
  *
  */
+
+
+uint8_t key_data[8];
+uint16_t address = 0;
+
 int main(void)
 {
     WDTCTL = WDTPW | WDTHOLD;   // stop watchdog timer
@@ -271,10 +338,11 @@ int main(void)
 	LED_TURN_ON_GR;
 
 
-	uint8_t super_M_key[] = {0x01, 0xCA, 0xFE, 0xBE, 0xEF, 0xAB, 0xCD, 0xEF};
+//	uint8_t super_M_key[] = {0x01, 0xCA, 0xFE, 0xBE, 0xEF, 0xAB, 0xCD, 0xEF};
 	uint8_t key[8];
 	EEPROM_key_read(key, EEPROM_MASTER_KEY_PLACE);
 	if(key[0] != 0x01){
+	    uart_send_str("First start EEPROM erase.", 1);
 	    EEPROM_clear_ff();
 	    uart_send_str("Please touch a master key.", 1);
 	    state.current_state = add_master_key;
@@ -283,15 +351,38 @@ int main(void)
 	}
 
 	EEPROM_key_read(M_key, EEPROM_MASTER_KEY_PLACE);
-
+	// sys check.
+	uart_send_str("System OK", 1);
 	__enable_interrupt();
 
+	uint8_t pos = 0;
 	while(1){
+
 
 	    state.current_state(get_input());
 	    if(LED_flag){
 	        P1OUT ^= BIT6;
 	        LED_flag = 0;
+
+	        if(pos == 0){
+	            uart_send_str("debug info start>", 1);
+	            EEPROM_key_read(key, pos);
+                uart_send_ibutton_data(key, 1);
+                uart_send_str("",1);
+
+	            pos += 8;
+	        }
+	        else if(pos <= 32){
+
+	            EEPROM_key_read(key, pos);
+	            uart_send_ibutton_data(key, 1);
+	            uart_send_str("",1);
+	            pos += 8;
+
+	        }else if(pos == 40){
+	            uart_send_str("<debug info end", 1);
+	            pos += 8;
+	        }
 	    }
 	}
 	return 0;
@@ -305,11 +396,7 @@ __interrupt void Timer0_A0_ISR(void){
 
     if(!(--LED_ms)){
         LED_flag = 1;
-        LED_ms = 500;
-    }
-    if(!(--reader_ms)){
-        reader_flag = 1;
-        reader_ms = reader_polling_ms;
+        LED_ms = 250;
     }
     if(!(--timeout_ms)){
         put_input(timeout);

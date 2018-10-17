@@ -28,6 +28,7 @@
 #define ACK_SKIP SCL_0; wait_us(BIT_TIME); SCL_1; wait_us(BIT_TIME)
 #define ACK_CHECK(n) ( {SCL_0; SDA_1; wait_us(BIT_TIME); SCL_1; wait_us(BIT_TIME/2); if(GET_INPUT) return n; wait_us(BIT_TIME/2); })
 #define ACK_CREATE SCL_0; SDA_0; wait_us(BIT_TIME); SCL_1; wait_us(BIT_TIME)
+#define ACK_NO SCL_0; SDA_1; wait_us(BIT_TIME); SCL_1; wait_us(BIT_TIME)
 
 static void shift_byte(uint8_t byte);
 static void read_byte(uint8_t *byte);
@@ -128,10 +129,10 @@ int EEPROM_key_write(uint8_t *data, uint16_t address){
     shift_byte((uint8_t)address_MS_byte);                // ADDRESS
     ACK_SKIP;
     shift_byte((uint8_t)address);
-    ACK_SKIP;
+    ACK_CHECK(1);
     while(datasize-- > 0){
         shift_byte(*(data++));
-        ACK_SKIP;
+        ACK_CHECK(1);
     }
 
     STOP_BIT;
@@ -187,11 +188,7 @@ int EEPROM_key_read(uint8_t *data, uint16_t address){
         ACK_CREATE;
     }
     read_byte((data+7));
-    SCL_0;                                              // After the last byte, no acknowledgment bit is given to stop reading process.
-    SDA_1;
-    wait_us(BIT_TIME);
-    SCL_1;
-    wait_us(BIT_TIME);
+    ACK_NO;
     ACK_SKIP;
 
     STOP_BIT;
@@ -276,34 +273,43 @@ uint16_t EEPROM_get_key_or_empty_place(uint8_t *key_code, uint16_t *addr, uint16
     ACK_CHECK(0xFFFD);
 
     while(*addr < addr_limit){
-        read_byte(&byte);
-        ACK_CREATE;
 
         uint8_t i;
-        key_cmp_cnt = 7;
+        key_cmp_cnt = 6;        // First byte is checked, after 6 byte the last byte is also checked out of the for cycle.
 
+        read_byte(&byte);
+        ACK_CREATE;
         if(byte != 0x01){
             if(byte == 0xFF){
+                if(*first_free_addr == 1)
+                    *first_free_addr = *addr;
+                ACK_NO;
+                STOP_BIT;
                 return 0;
             }
-            else if(*first_free_addr == 1){
+            if(*first_free_addr == 1){
                 *first_free_addr = *addr;
             }
         }
                          // When the first byte is equal to family code: 0x01, start a byte compare routine.
 
-        for(i = 7; i > 0; i--){
+        for(i = 6; i > 0; i--){
             read_byte(&byte);
             ACK_CREATE;
-            if(byte == *(key_code+8-i))
+            if(byte == *(key_code+7-i))
                 key_cmp_cnt--;
         }
-
-        if(!key_cmp_cnt)
+        read_byte(&byte);                               // Last byte
+        if( (byte == *(key_code+7)) && !key_cmp_cnt){
+            ACK_NO;
+            STOP_BIT;
             return 1;
-
+        }else
+            ACK_CREATE;
 
         (*addr) += 8;  // First byte of the next key in memory.
     }
+    ACK_NO;
+    STOP_BIT;
     return 0xFFFF;
 }
