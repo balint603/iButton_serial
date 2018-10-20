@@ -51,7 +51,9 @@ void uart_init(){
 /**
  *  Hex byte to ASCII conversion.
  * */
-void hex_byte_to_char(uint8_t code, char *MSB, char *LSB){
+int hex_byte_to_char(uint8_t code, char *MSB, char *LSB){
+    if(!MSB && !LSB)
+        return 1;
     uint8_t byte_upper;
     uint8_t byte_lower = 0;
 
@@ -66,6 +68,30 @@ void hex_byte_to_char(uint8_t code, char *MSB, char *LSB){
             *LSB = byte_lower + '0';
     else
         *LSB = byte_lower + 'A' - 10;
+
+    return 0;
+}
+
+int hex_char_to_number(char MSB, char LSB, uint8_t *number){
+    if(!number)
+        return 1;
+    if( MSB >= '0' && MSB <= '9')
+        *number = MSB - '0';
+    else if( MSB >= 'A' && MSB <= 'F')
+        *number = MSB - 'A' + 10;
+    else if( MSB >= 'a' && MSB <= 'f')
+        *number = MSB - 'a' + 10;
+    *number <<= 4;
+    if( LSB >= '0' && LSB <= '9')
+        *number += LSB - '0';
+    else if( LSB >= 'A' && LSB <= 'F')
+        *number += LSB - 'A' + 10;
+    else if( LSB >= 'a' && LSB <= 'f')
+        *number += LSB - 'a' + 10;
+    else
+        return 2;
+
+    return 0;
 }
 
 uint16_t uart_get_buffer_bytes(){

@@ -31,7 +31,9 @@ int uart_send_str(char *str, uint8_t new_line);
 
 uint8_t uart_get_byte();
 
-void hex_byte_to_char(uint8_t code, char *MSB, char *LSB);
+int hex_byte_to_char(uint8_t code, char *MSB, char *LSB);
+
+int hex_char_to_number(char MSB, char LSB, uint8_t *number);
 
 volatile extern uint8_t uart_rx_buffer_not_empty_flag;
 volatile extern uint8_t uart_rx_buffer_full;
