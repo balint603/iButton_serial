@@ -13,14 +13,14 @@
 #define REL_ON REL_PORT_DIR |= REL_BIT
 #define REL_OFF REL_PORT_DIR &= ~REL_BIT
 
-/** UART EXTERN */
+/** GLOBAL VARIABLES______________________________________________________________________________ */
+/**
+ * UART flag
+ * */
 volatile uint8_t uart_rx_buffer_not_empty_flag = 0;
 
 uint_fast16_t LED_ms = 500;
 volatile uint8_t LED_flag;
-
-uint_fast16_t reader_ms = reader_polling_ms;
-volatile uint8_t reader_flag;
 
 uint_fast16_t timeout_ms = 0;
 
@@ -31,8 +31,9 @@ volatile uint8_t key_code[8];
 uint8_t super_M_key[] = {0x01,0x56,0xf1,0xbb,0x1a,0x00,0x00,0xef};
 
 uint8_t M_key[] = {0x01,0x56,0xf1,0xbb,0x1a,0x00,0x00,0xef};
+/** GLOBAL VARIABLES END___________________________________________________________________________ */
 
-/** State machine START*/
+/** STATE MACHINE START_____________________________________________________________________________*/
 #define N_STATE_INPUTS 10
 
 typedef enum inputs{
@@ -82,10 +83,9 @@ void put_input(input_t new_input){
     else    // 0 or queue is full, overwrite IT!
             inputs[state.n_of_inputs - 1] = new_input;  // ?
 }
-/** END */
+/** STATE_MACHINE END____________________________________________________________________________ */
 
-
-
+/** INITIALIZATION FUNCTIONS START_______________________________________________________________ */
 void init_clk(){
     BCSCTL3 = LFXT1S_2;             // ACLK VLO source
     IFG1 &= ~OFIFG;                 // Delete Oscillator Fault bit
@@ -115,19 +115,27 @@ void init_ports(){
     P2OUT &= ~(BIT5 + BIT4 + BIT3 + BIT2 + BIT1 + BIT0);
     P2DIR &= ~BIT3;
 }
+/** INITIALIZATION FUNCTIONS END_________________________________________________________________ */
 
-
-/** STATE FUNCTIONS START_____________________________________________________________________________________________ */
-
-void open_relay(input_t next_input){
+/** STATE FUNCTIONS START________________________________________________________________________ */
+void access_allow(input_t next_input){
     REL_ON;
     LED_TURN_OFF_GR;
     switch(next_input){
     case timeout:
-        REL_OFF;
-        LED_TURN_ON_GR;
-        state.current_state = check_touch;
         uart_send_str("RELAY=OFF", 1);
+        LED_TURN_ON_GR;
+        REL_OFF;
+        state.current_state = check_touch;
+    }
+}
+
+void access_denied(input_t next_input){
+    switch(next_input){
+    case timeout:
+        LED_TURN_ON_GR;
+        LED_TURN_OFF_RE;
+        state.current_state = check_touch;
     }
 }
 
@@ -217,6 +225,8 @@ void master_mode(input_t next_input){
     switch(next_input){
     case timeout:
         state.current_state = check_touch;
+        LED_TURN_ON_GR;
+        LED_TURN_OFF_RE;
     }
 }
 
@@ -289,20 +299,27 @@ void check_touch(input_t next_input){
     if(ibutton_test_presence()){
         if(!ibutton_read_it(data)){
             if(EEPROM_get_key_or_empty_place(data, &addr, &addr_ff, 512, 0) == 1){
-                state.current_state = open_relay;
+                uart_send_str("RELAY=ON", 1);
                 timeout_ms = 5000;
                 REL_ON;
-                uart_send_str("RELAY=ON", 1);
+                state.current_state = access_allow;
+
+            }else{
+                uart_send_str("ACCESS DENIED!",1);
+                timeout_ms = 1000;
+                LED_TURN_OFF_GR;
+                LED_TURN_ON_RE;
+                state.current_state = access_denied;
             }
         }
     }
     else if(uart_rx_buffer_not_empty_flag){
         switch (uart_get_byte()){
         case 'M':
+            uart_send_str("Please send/touch master key!", 1);
+            timeout_ms = 60000;
             LED_TURN_OFF_GR;
             state.current_state = wait_for_master_key;
-            timeout_ms = 60000;
-            uart_send_str("Please send/touch master key!", 1);
             break;
         case 'C':
             EEPROM_clear_ff();
@@ -313,13 +330,9 @@ void check_touch(input_t next_input){
     }
 }
 
-/** STATE FUNCTIONS END_________________________________________________________________________________________________ */
+/** STATE FUNCTIONS END__________________________________________________________________________ */
 
-/**
- *
- */
-
-
+/** FOR DEBUG */
 uint8_t key_data[8];
 uint16_t address = 0;
 
@@ -358,12 +371,13 @@ int main(void)
 	uint8_t pos = 0;
 	while(1){
 
-
 	    state.current_state(get_input());
+
 	    if(LED_flag){
 	        P1OUT ^= BIT6;
 	        LED_flag = 0;
 
+	        // DEBUG INFO
 	        if(pos == 0){
 	            uart_send_str("debug info start>", 1);
 	            EEPROM_key_read(key, pos);
