@@ -27,13 +27,15 @@
 #define SCL_PORT_OUT P2OUT
 
 /*     EEPROM_type      */
-#define EEPROM_MASTER_KEY_PLACE 32760 /* B */
+#define EEPROM_LAST_KEY_SPACE 32744 /* B */
+#define EEPROM_TIME_SETTING_PLACE (EEPROM_LAST_KEY_SPACE + 8)
+
+#define EEPROM_MASTER_KEY_PLACE (EEPROM_LAST_KEY_SPACE + 16)
 #define EEPROM_N_OF_PAGES 512
 #define EEPROM_SIZE_OF_PAGE 64 /* B */
 
 #define BIT_TIME 5 /* up/down time */
 /*________________________________ END SETTINGS ________________________________ */
-
 
 int EEPROM_clear_ff();
 

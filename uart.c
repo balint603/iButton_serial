@@ -81,6 +81,7 @@ int hex_char_to_number(char MSB, char LSB, uint8_t *number){
         *number = MSB - 'A' + 10;
     else if( MSB >= 'a' && MSB <= 'f')
         *number = MSB - 'a' + 10;
+    else return 2;
     *number <<= 4;
     if( LSB >= '0' && LSB <= '9')
         *number += LSB - '0';
@@ -179,7 +180,7 @@ uint8_t uart_get_byte(){
     uint8_t byte = 0;
     if(buf_rx.num_bytes > 0){
         byte = buf_rx.data_buf[buf_rx.i_first];
-        if(--buf_rx.num_bytes)
+        if(!--buf_rx.num_bytes)
             uart_rx_buffer_not_empty_flag = 0;
 
         if(++buf_rx.i_first == RX_SIZE)

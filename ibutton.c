@@ -112,3 +112,26 @@ int ibutton_read_it(uint8_t *data){
     }   // READING process end here
     return *(data+7) != crc || *(data) != 0x01 ? 1 : 0;        // CRC!
 }
+
+uint8_t ibutton_crc8(uint8_t *data) {
+    uint8_t i;
+    uint8_t k;
+    uint8_t temp;
+    uint8_t databyte;
+    uint8_t crc = 0;
+    uint8_t len = 8;
+
+    for (i = 0; i < len; i++) {
+        databyte = data[i];
+        for (k = 0; k < 8; k++) {
+            temp = (crc ^ databyte) & 0x01;
+            crc >>= 1;
+            if (temp)
+                crc ^= 0x8C;
+
+            databyte >>= 1;
+        }
+    }
+
+    return crc;
+}

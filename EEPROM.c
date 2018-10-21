@@ -241,7 +241,7 @@ int EEPROM_read_byte(uint8_t *byte, uint16_t address){
  *  \ret 0xFFFD when EEPROM does not responds with acknowledgment bit after first command.
  * */
 uint16_t EEPROM_get_key_or_empty_place(uint8_t *key_code, uint16_t *addr, uint16_t *first_free_addr, uint16_t addr_limit, uint8_t reading_dir){
-    if(addr_limit >= EEPROM_MASTER_KEY_PLACE)           // check ptrs.
+    if(addr_limit > EEPROM_LAST_KEY_SPACE)           // check ptrs.
         return 0xFFFC;
     if(reading_dir){
         if(*addr < addr_limit)
