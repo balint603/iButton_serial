@@ -6,12 +6,13 @@
 #include "uart.h"
 #include "EEPROM.h"
 
-#define reader_polling_ms 20
-
 #define REL_PORT_DIR P2DIR
 #define REL_BIT BIT3
 #define REL_ON REL_PORT_DIR |= REL_BIT
 #define REL_OFF REL_PORT_DIR &= ~REL_BIT
+
+#define READ_DISABLE_TIME 500 /* ms */
+#define READ_POLLING_TIME 10 /* ms */
 
 /** GLOBAL VARIABLES______________________________________________________________________________ */
 
@@ -21,20 +22,26 @@ typedef struct iButton_key_data{
     const uint8_t super_master_key_code[8];
     uint8_t key_code_n;
     uint8_t compare_flag;
-    uint8_t reader_enable;
+    volatile uint8_t reader_enable_flag;
+    uint8_t key_to_process;
     char command;
 } iButton_key_data_t;
 
 iButton_key_data_t iButton_data = { .super_master_key_code = {0x01,0x56,0xf1,0xbb,0x1a,0x00,0x00,0xef},
-                                    .reader_enable = 1 ,
-                                    .command = '0'                                                         };
+                                    .command = '0',
+                                    .reader_enable_flag = 1};
 
 volatile uint8_t uart_rx_buffer_not_empty_flag = 0;
 
 uint_fast16_t LED_ms = 500;
 volatile uint8_t LED_flag;
+
 uint_fast16_t timeout_ms = 0;
-volatile uint16_t delay_ms;
+uint_fast16_t reader_polling_ms = READ_POLLING_TIME;
+volatile uint8_t reader_polling_flag = 1;
+uint_fast16_t reading_disable_ms;
+
+
 volatile uint8_t key_code[8];
 /** GLOBAL VARIABLES END___________________________________________________________________________ */
 
@@ -46,6 +53,7 @@ void access_allow();
 void access_denied();
 void add_key_mode();
 void change_relay_time();
+void master_mode();
 void wait_for_master_key();
 void add_master_key();
 void check_touch();
@@ -90,6 +98,16 @@ void init_ports(){
 /** INITIALIZATION FUNCTIONS END_________________________________________________________________ */
 
 /** FUNCTIONS____________________________________________________________________________________ */
+
+int compare_key(uint8_t *key1, uint8_t *key2){
+    int i;
+    if(!(key1 && key2))
+        return -1;
+    for(i=7; i >= 0; i--)
+        if(key1[i] != key2[i])
+            return 1;
+    return 0;
+}
 
 /** FUNCTIONS END________________________________________________________________________________ */
 
@@ -252,6 +270,10 @@ void change_relay_time(){
 
 }
 
+void master_mode(){
+    P1OUT |= BIT0;
+}
+
 void wait_for_master_key(){
     char MSch, LSch;
     uint8_t number;
@@ -328,7 +350,13 @@ void check_touch(){
                 REL_ON;
                 g_current_state = access_allow;
 
-            }else{
+            }else if(!compare_key(data, iButton_data.master_key_code)){
+                uart_send_str("Master mode", 1);
+                timeout_ms = 30000;
+                REL_ON;
+                g_current_state = master_mode;
+            }
+            else{
                 uart_send_str("ACCESS DENIED!",1);
                 timeout_ms = 1000;
                 LED_TURN_OFF_GR;
@@ -339,18 +367,7 @@ void check_touch(){
     }
     else if(uart_rx_buffer_not_empty_flag){
         switch (iButton_data.command = uart_get_byte()){            // Get current command.
-        case 'a':
-            uart_send_str("Please send/touch master key!", 1);
-            timeout_ms = 30000;
-            LED_TURN_OFF_GR;
-            g_current_state = wait_for_master_key;
-            break;
-        case 'c':  // \todo debug
-            EEPROM_clear_ff();
-            uart_send_str("Please touch a master key!", 1);
-            g_current_state = add_master_key;
-            break;
-        case 't':
+        case 'm':
             uart_send_str("Please send/touch master key!", 1);
             timeout_ms = 30000;
             LED_TURN_OFF_GR;
@@ -398,10 +415,36 @@ int main(void)
 
 	uint8_t key[8];
 	uint8_t pos = 0;
+
+	uint8_t prev_presence = 0;
+	uint8_t curr_presence = 0;
 	while(1){
 
-	    g_current_state();
+	    if( reader_polling_flag ){
 
+	        if( curr_presence = ibutton_test_presence()){
+	            if(!iButton_data.reader_enable_flag)
+	               reading_disable_ms = READ_DISABLE_TIME;
+               else if(!ibutton_read_it(iButton_data.key_code)){
+                   iButton_data.key_to_process = 1;
+                   iButton_data.reader_enable_flag = 0;
+                }
+	        }
+	        else if(prev_presence)
+                reading_disable_ms = READ_DISABLE_TIME;
+	        prev_presence = curr_presence;
+            reader_polling_flag = 0;
+	    }
+	    // test
+	    if(iButton_data.key_to_process){
+	        iButton_data.key_to_process = 0;
+	        P1OUT ^= BIT0;
+	    }
+
+	    //g_current_state();
+
+
+	    /* Debug START___________________________________________________*/
 	    if(LED_flag){
 	        P1OUT ^= BIT6;
 	        LED_flag = 0;
@@ -427,6 +470,7 @@ int main(void)
 	            pos += 8;
 	        }
 	    }
+	    /* Debug END_____________________________________________________*/
 	}
 	return 0;
 }
@@ -443,5 +487,12 @@ __interrupt void Timer0_A0_ISR(void){
     }
     if(!(--timeout_ms)){
         timeout_flag = 1;
+    }
+    if( !( --reader_polling_ms )){
+        reader_polling_flag = 1;
+        reader_polling_ms = READ_POLLING_TIME;
+    }
+    if( !(--reading_disable_ms)){
+        iButton_data.reader_enable_flag = 1;
     }
 }
