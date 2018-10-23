@@ -47,22 +47,28 @@ volatile uint8_t key_code[8];
 
 /** STATE MACHINE START_____________________________________________________________________________*/
 
-typedef void ( *p_state_handler )();
+typedef enum inputs {
+    key_touched,
+    button_pressed,
+    timeout
+} inputs_t
+
+typedef void ( *p_state_handler )(inputs_t input);
 /** States: */
-void access_allow();
-void access_denied();
-void add_key_mode();
-void change_relay_time();
-void master_mode();
-void wait_for_master_key();
-void add_master_key();
-void check_touch();
+void access_allow(inputs_t input);
+void access_denied(inputs_t input);
+void master_mode(inputs_t input);
+void add_master_key(inputs_t input);
+void check_touch(inputs_t input);
 
-uint8_t timeout_flag = 0;
+typedef struct fsm{
+    inputs_t input;
+    p_state_handler current_state;
+    uint8_t input_to_serve;
+} ibutton_fsm_t;
 
+ibutton_fsm_t ibutton_fsm = {.current_state = check_touch}
 
-
-p_state_handler g_current_state = check_touch;
 /** STATE_MACHINE END____________________________________________________________________________ */
 
 /** INITIALIZATION FUNCTIONS START_______________________________________________________________ */
@@ -109,10 +115,64 @@ int compare_key(uint8_t *key1, uint8_t *key2){
     return 0;
 }
 
+int search_key_and_write(){
+    uint16_t addr = 0;
+    uint16_t addr_ff = 0;
+
+    switch(ret = EEPROM_get_key_or_empty_place(iButton_data.key_code, &addr, &addr_ff, EEPROM_LAST_KEY_SPACE, 0)){
+    case 0:
+        if(EEPROM_key_write(iButton_data.key_code, addr_ff))
+            uart_send_str("COM ERROR",1);
+        __delay_cycles(60000);
+        __delay_cycles(60000);
+        EEPROM_key_read(data_r, addr_ff);
+        for(i = 7; i > 0 && data_r[i] == iButton_data.key_code[i]; i--)
+            ;
+        if(i){
+            uart_send_str("ERROR: WRITE INTO FREE SPACE", 1);
+        }
+        else{
+            uart_send_str("KEY SUCCESSFULLY ADDED", 1);
+        }
+        LED_TURN_ON_GR;
+        LED_TURN_OFF_RE;
+        g_current_state = check_touch;
+        break;
+    case 1:
+        if(EEPROM_key_write(deleted_key, addr))
+            uart_send_str("COM error", 1);
+        __delay_cycles(60000);
+        __delay_cycles(60000);
+        EEPROM_key_read(data_r, addr);
+        for(i = 7; i > 0 && deleted_key[i] == data_r[i]; i--)
+            ;
+        if(i)
+            uart_send_str("ERROR: WRITE INTO KEY", 1);
+        else{
+            uart_send_str("KEY SUCCESSFULLY DELETED", 1);
+        }
+        LED_TURN_ON_GR;
+        LED_TURN_OFF_RE;
+        g_current_state = check_touch;
+        break;
+    default:
+        uart_send_str("EEPROM ERROR", 1);
+        char a, b;
+        hex_byte_to_char((uint8_t)ret, &a, &b);
+        uart_send_byte(a);
+        uart_send_byte(b);
+        uart_send_byte(10);
+        uart_send_byte(13);
+        LED_TURN_ON_GR;
+        LED_TURN_OFF_RE;
+        g_current_state = check_touch;
+    }
+}
+
 /** FUNCTIONS END________________________________________________________________________________ */
 
 /** STATE FUNCTIONS START________________________________________________________________________ */
-void add_master_key(){
+/*void add_master_key(){
     LED_TURN_ON_RE;
     LED_TURN_OFF_GR;
     uint8_t data[8];
@@ -140,26 +200,26 @@ void add_master_key(){
             LED_TURN_ON_GR;
         }
     }
-}
+}*/
 
-void access_allow(){
+void access_allow(inputs_t input){
     REL_ON;
     LED_TURN_OFF_GR;
-    if(timeout_flag){
+    if(input == timeout){
         uart_send_str("RELAY=OFF", 1);
         LED_TURN_ON_GR;
         REL_OFF;
-        g_current_state = check_touch;
-        timeout_flag = 0;
+        ibutton_fsm.current_state = check_touch;
+        ibutton_fsm.input_to_serve = 0;
     }
 }
 
-void access_denied(){
-    if(timeout_flag){
+void access_denied(inputs_t input){
+    if(input = timeout){
         LED_TURN_ON_GR;
         LED_TURN_OFF_RE;
-        g_current_state = check_touch;
-        timeout_flag = 0;
+        ibutton_fsm.current_state = check_touch;
+        ibutton_fsm.input_to_serve = 0;
     }
 }
 /**
@@ -211,56 +271,7 @@ void add_key_mode(){
                 LED_TURN_ON_GR;
                 g_current_state = check_touch;
             }else{
-                switch(ret = EEPROM_get_key_or_empty_place(iButton_data.key_code, &addr, &addr_ff, EEPROM_LAST_KEY_SPACE, 0)){
-                case 0:
-                    if(EEPROM_key_write(iButton_data.key_code, addr_ff))
-                        uart_send_str("COM ERROR",1);
-                    __delay_cycles(60000);
-                    __delay_cycles(60000);
-                    EEPROM_key_read(data_r, addr_ff);
-                    for(i = 7; i > 0 && data_r[i] == iButton_data.key_code[i]; i--)
-                        ;
-                    if(i){
-                        uart_send_str("ERROR: WRITE INTO FREE SPACE", 1);
-                    }
-                    else{
-                        uart_send_str("KEY SUCCESSFULLY ADDED", 1);
-                    }
-                    LED_TURN_ON_GR;
-                    LED_TURN_OFF_RE;
-                    g_current_state = check_touch;
-                    break;
-
-                case 1:
-                    if(EEPROM_key_write(deleted_key, addr))
-                        uart_send_str("COM error", 1);
-
-                    __delay_cycles(60000);
-                    __delay_cycles(60000);
-                    EEPROM_key_read(data_r, addr);
-                    for(i = 7; i > 0 && deleted_key[i] == data_r[i]; i--)
-                        ;
-                    if(i)
-                        uart_send_str("ERROR: WRITE INTO KEY", 1);
-                    else{
-                        uart_send_str("KEY SUCCESSFULLY DELETED", 1);
-                    }
-                    LED_TURN_ON_GR;
-                    LED_TURN_OFF_RE;
-                    g_current_state = check_touch;
-                    break;
-                default:
-                    uart_send_str("EEPROM ERROR", 1);
-                    char a, b;
-                    hex_byte_to_char((uint8_t)ret, &a, &b);
-                    uart_send_byte(a);
-                    uart_send_byte(b);
-                    uart_send_byte(10);
-                    uart_send_byte(13);
-                    LED_TURN_ON_GR;
-                    LED_TURN_OFF_RE;
-                    g_current_state = check_touch;
-                }
+                search_key_and_write(); // todo test it
             }
         }
     }
@@ -270,59 +281,49 @@ void change_relay_time(){
 
 }
 
-void master_mode(){
-    P1OUT |= BIT0;
-}
-
-void wait_for_master_key(){
+/*void wait_for_master_key(){
     char MSch, LSch;
     uint8_t number;
 
     if(timeout_flag){
         uart_send_str("Timeout", 1);
         LED_TURN_ON_GR;
+        LED_TURN_OFF_RE;
         timeout_flag = 0;
         g_current_state = check_touch;
     }
     else if(uart_get_buffer_bytes() >= 2){
         timeout_ms = 30000;
-        MSch = uart_get_byte();
-        LSch = uart_get_byte();
+        if(MSch = uart_get_byte() == 'v' || LSch = uart_get_byte() == 'v'){
+            LED_TURN_ON_GR;
+            LED_TURN_OFF_RE;
+            iButton_data.key_code_n = 0;
+            iButton_data.compare_flag = 0;
+            uart_send_str("Check touch", 1);
+            g_current_state = check_touch;
+
+            char a,b;
+            hex_byte_to_char(number, &a, &b);
+            uart_send_byte((char)a);
+            uart_send_byte((char)b);
+
+        }
         hex_char_to_number(MSch, LSch, &number);
 
-        /**debug*/
-        char a,b;
-        hex_byte_to_char(number, &a, &b);
-        uart_send_byte((char)a);
-        uart_send_byte((char)b);
 
-        /**debug end*/
+
+
+
 
         if(number != iButton_data.master_key_code[iButton_data.key_code_n])
             iButton_data.compare_flag++;
-
         if(iButton_data.key_code_n++ >= 7){     // Comparing end
             if(!iButton_data.compare_flag){     // Master code ok
+                uart_send_str("->", 1);
+                uart_send_str("Wrong master code!", 1);
                 iButton_data.key_code_n = 0;
                 iButton_data.compare_flag = 0;
-
-                switch (iButton_data.command){
-                case 'a':
-                    uart_send_str("->", 1);
-                    uart_send_str("Switched to add key mode", 1);
-                    g_current_state = add_key_mode;
-                    break;
-                case 't':
-                    uart_send_str("->", 1);
-                    uart_send_str("Change relay on-time:", 0);
-                    g_current_state = change_relay_time;
-                    break;
-                default:
-                    uart_send_str("Wrong cmd!", 1);
-                    break;
-                }
-                LED_TURN_ON_RE;
-                timeout_ms = 30000;
+                uart_send_str(' ', 1);
             }else{
                 iButton_data.key_code_n = 0;
                 iButton_data.compare_flag = 0;
@@ -333,60 +334,72 @@ void wait_for_master_key(){
             }
         }
     }
+} */
+
+
+void master_mode(inputs_t input){
+    ibutton_fsm.input_to_serve = 0;
+    switch(input){
+    case timeout:
+        uart_send_str("Normal mode>", 1);
+        LED_TURN_ON_GR;
+        LED_TURN_OFF_RE;
+        // todo stop blinking, reset blinking timer variable
+        ibutton_fsm.current_state = check_touch;
+        break;
+    case key_touched:
+        search_key_and_write(); // todo test it.
+        break;
+    }
 }
 
-void check_touch(){
+void check_touch(inputs_t input){
     uint16_t addr = 0;
     uint16_t addr_ff = 0;
-    uint8_t data[8];
 
     timeout_ms = 0;
 
-    if(ibutton_test_presence()){
-        if(!ibutton_read_it(data)){
-            if(EEPROM_get_key_or_empty_place(data, &addr, &addr_ff, 512, 0) == 1){
-                uart_send_str("RELAY=ON", 1);
-                timeout_ms = 2000;
-                REL_ON;
-                g_current_state = access_allow;
+    switch (ibutton_fsm.input){
+    case key_touched:
+        if(EEPROM_get_key_or_empty_place(iButton_data.key_code, &addr, &addr_ff, EEPROM_LAST_KEY_SPACE, 0) == 1){
+            uart_send_str("RELAY=ON", 1);
+            // \todo Check opening time settings here.
+            timeout_ms = 2000;
+            REL_ON;
+            ibutton_fsm.current_state = access_allow;
 
-            }else if(!compare_key(data, iButton_data.master_key_code)){
-                uart_send_str("Master mode", 1);
-                timeout_ms = 30000;
-                REL_ON;
-                g_current_state = master_mode;
-            }
-            else{
-                uart_send_str("ACCESS DENIED!",1);
-                timeout_ms = 1000;
-                LED_TURN_OFF_GR;
-                LED_TURN_ON_RE;
-                g_current_state = access_denied;
-            }
-        }
-    }
-    else if(uart_rx_buffer_not_empty_flag){
-        switch (iButton_data.command = uart_get_byte()){            // Get current command.
-        case 'm':
-            uart_send_str("Please send/touch master key!", 1);
+        }else if(!compare_key(iButton_data.key_code, iButton_data.master_key_code)){
+            uart_send_str("Master mode#", 1);
             timeout_ms = 30000;
-            LED_TURN_OFF_GR;
-            g_current_state = wait_for_master_key;
-            break;
-        default:
-            uart_send_str("Invalid cmd!", 1);   // \todo disable UART for a while!
-
-            break;
+            REL_ON;
+            ibutton_fsm.current_state = master_mode;
         }
+        else{
+            uart_send_str("ACCESS DENIED!",1);
+            timeout_ms = 1000;
+            LED_TURN_OFF_GR;
+            LED_TURN_ON_RE;
+            ibutton_fsm.current_state = access_denied;
+        }
+        iButton_fsm.input_to_serve = 0;
+        break;
+    case button_pressed:
+        uart_send_str("RELAY=ON", 1);
+        timeout_ms = 2000;
+        REL_ON;
+        ibutton_fsm.current_state = access_allow;
+        ibutton_fsm.input_to_serve = 0;
+        break;
     }
 }
 
 /** STATE FUNCTIONS END__________________________________________________________________________ */
-
-/** FOR DEBUG */
-uint8_t key_data[8];
-uint16_t address = 0;
-
+/**
+ * Initialization.
+ * Get the key code if iButton has touched to the reader.
+ * Generating input for the state machine by checking the presence of an iButton key.
+ * After a key had been successfully read by the reader, key-reading is disabled. Reading will be enabled defined seconds after the key is not present.
+ * */
 int main(void)
 {
     WDTCTL = WDTPW | WDTHOLD;   // stop watchdog timer
@@ -396,9 +409,9 @@ int main(void)
     init_system_timer();
     uart_init();
     ibutton_init();
-
 	LED_TURN_ON_GR;
 
+	/** Get settings data from the EEPROM Start_______________________________________________ */
 	EEPROM_key_read(iButton_data.master_key_code, EEPROM_MASTER_KEY_PLACE);
 	if(iButton_data.master_key_code[0] != 0x01){
 	    uart_send_str("First start EEPROM erase.", 1);
@@ -408,26 +421,27 @@ int main(void)
 	    __delay_cycles(60000);
 	    __delay_cycles(60000);
 	}
+	/** Get settings data from the EEPROMend__________________________________________________ */
 
 	// \todo sys check.
 	uart_send_str("System OK", 1);
-	__enable_interrupt();
 
 	uint8_t key[8];
 	uint8_t pos = 0;
-
 	uint8_t prev_presence = 0;
 	uint8_t curr_presence = 0;
+
+	__enable_interrupt();
 	while(1){
 
+	    /* iButton reading start__________________________________________ */
 	    if( reader_polling_flag ){
-
 	        if( curr_presence = ibutton_test_presence()){
 	            if(!iButton_data.reader_enable_flag)
 	               reading_disable_ms = READ_DISABLE_TIME;
-               else if(!ibutton_read_it(iButton_data.key_code)){
-                   iButton_data.key_to_process = 1;
-                   iButton_data.reader_enable_flag = 0;
+	            else if(!ibutton_read_it(iButton_data.key_code)){
+                   ibutton_fsm.input = key_touched;
+                   ibutton_fsm.input_to_serve = 1;
                 }
 	        }
 	        else if(prev_presence)
@@ -435,16 +449,15 @@ int main(void)
 	        prev_presence = curr_presence;
             reader_polling_flag = 0;
 	    }
-	    // test
-	    if(iButton_data.key_to_process){
-	        iButton_data.key_to_process = 0;
-	        P1OUT ^= BIT0;
-	    }
+	    /* iButton reading end___________________________________________ */
+	    /* Check button start____________________________________________ */
+	    // todo implement button check (maybe interrupt)
+	    /* Check button end______________________________________________ */
 
-	    //g_current_state();
+	    if(ibutton_fsm.input_to_serve)
+	        ibutton_fsm.current_state(ibutton_fsm.input);
 
-
-	    /* Debug START___________________________________________________*/
+	    /* Debug START____________________________________________________*/
 	    if(LED_flag){
 	        P1OUT ^= BIT6;
 	        LED_flag = 0;
@@ -486,7 +499,8 @@ __interrupt void Timer0_A0_ISR(void){
         LED_ms = 250;
     }
     if(!(--timeout_ms)){
-        timeout_flag = 1;
+        ibutton_fsm.input = timeout;
+        ibutton_fsm.input_to_serve = 1;
     }
     if( !( --reader_polling_ms )){
         reader_polling_flag = 1;
