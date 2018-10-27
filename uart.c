@@ -21,7 +21,7 @@ typedef struct {
 }buf_out_t;
 
 typedef struct {
-    uint8_t data_buf[RX_SIZE];
+    uint8_t *data_buf;
     uint16_t i_first;
     uint16_t i_last;
     uint16_t num_bytes;
@@ -32,7 +32,10 @@ buf_out_t buf_tx;
 
 
 
-void uart_init(){
+void uart_init(uint8_t *RX_buf, uint8_t size){
+    if(!RX_buf)
+        return 1;
+    buf_rx.data_buf = RX_buf;
     UCA0CTL1 |= UCSWRST;
     UCA0CTL1 |= UCSSEL_2;
 
