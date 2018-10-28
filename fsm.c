@@ -35,6 +35,15 @@ int compare_key(uint8_t *key1, uint8_t *key2){
     return 0;
 }
 
+int copy_key(uint8_t *from, uint8_t *to){
+    if(!(from || to))
+        return 1;
+    uint8_t i;
+    for(i = 8; i > 0; i--)
+        *(to++) = *(from++);
+    return 0;
+}
+
 void ibutton_fsm_change_state(){
     ibutton_fsm.current_state(ibutton_fsm.input);
 }
@@ -257,6 +266,52 @@ void change_relay_time(){
     }
 } */
 
+int save_key_ff_mode(){
+
+    uint8_t i;
+    for(i = 0; i < iButton_data.buffer_cnt; i += 8)                                             // Key code has already been written into buffer
+        if(!compare_key(iButton_data.key_code, iButton_data.buffer_rx))
+            return 1;
+    if(EEPROM_search_key(iButton_data.key_code, EEPROM_LAST_KEY_SPACE))
+        return 1;
+    if(iButton_data.buffer_cnt >= 64)
+        return 1;
+    copy_key(iButton_data.key_code, iButton_data.buffer_rx+iButton_data.buffer_cnt);
+    iButton_data.buffer_cnt += 8;
+
+    if( !( (iButton_data.first_free_address + iButton_data.buffer_cnt) & 0b0000000000111111 ) ){              // integer multiply of 64, means page border!
+        EEPROM_write_n_byte(iButton_data.buffer_rx, iButton_data.buffer_cnt, iButton_data.first_free_address);
+        iButton_data.buffer_cnt = 0;
+    }
+    return 0;
+}
+
+void fast_add_mode(inputs_t input){
+    switch (input) {
+        case timeout:
+            uart_send_str("Normal mode>", 1);
+            LED_TURN_ON_GR;
+            LED_TURN_OFF_RE;
+            ibutton_fsm.current_state = check_touch;
+            break;
+        case key_touched:
+            // test EEPROM WP
+            save_key_ff_mode();
+            break;
+        case master_key_touched:
+            if(iButton_data.buffer_cnt > 0){
+                EEPROM_write_n_byte(iButton_data.buffer_rx, iButton_data.buffer_cnt, iButton_data.first_free_address);
+                iButton_data.buffer_cnt = 0;
+                led_blink_enable = 0;
+                LED_TURN_ON_GR;
+                LED_TURN_OFF_RE;
+                ibutton_fsm.current_state = check_touch;
+            }
+            break;
+        default:
+            break;
+    }
+}
 
 void master_mode(inputs_t input){
     fsm_input_flag = 0;
@@ -268,16 +323,14 @@ void master_mode(inputs_t input){
         // todo stop blinking, reset blinking timer variable
         ibutton_fsm.current_state = check_touch;
         break;
+    case master_key_touched:
+        uart_send_str("Normal mode>", 1);
+        led_blink_enable = 0;
+        LED_TURN_ON_GR;
+        ibutton_fsm.current_state = check_touch;
+        break;
     case key_touched:
-        if(!compare_key(iButton_data.master_key_code, iButton_data.key_code)){           // If master key.
-            uart_send_str("Normal mode>", 1);
-            led_blink_enable = 0;
-            LED_TURN_ON_GR;
-            ibutton_fsm.current_state = check_touch;
-        }
-        else
-            search_key_and_write();
-
+        search_key_and_write();
         break;
     }
 }
@@ -298,13 +351,6 @@ void check_touch(inputs_t input){
             LED_TURN_OFF_GR;
             REL_ON;
             ibutton_fsm.current_state = access_allow;
-
-        }else if(!compare_key(iButton_data.key_code, iButton_data.master_key_code)){
-            uart_send_str("Master mode#", 1);
-            timeout_ms = 30000;
-            led_blink_enable = 1;
-            //REL_ON;
-            ibutton_fsm.current_state = master_mode;
         }
         else{
             uart_send_str("ACCESS DENIED!",1);
@@ -313,7 +359,13 @@ void check_touch(inputs_t input){
             LED_TURN_ON_RE;
             ibutton_fsm.current_state = access_denied;
         }
-        fsm_input_flag = 0;
+            break;
+    case master_key_touched:
+        uart_send_str("Master mode#", 1);
+        timeout_ms = 30000;
+        led_blink_enable = 1;
+        //REL_ON;
+        ibutton_fsm.current_state = master_mode;
         break;
     case button_pressed:
         uart_send_str("RELAY=ON", 1);
@@ -323,6 +375,7 @@ void check_touch(inputs_t input){
         fsm_input_flag = 0;
         break;
     }
+    fsm_input_flag = 0;
 }
 
 /* State functions stop____________________________________________________________________________________ */

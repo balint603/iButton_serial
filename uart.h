@@ -15,7 +15,7 @@
 #define BAUD_SETTING_VALUE (UART_CLK*1000000 / UART_BAUD_RATE)
 
 #define TX_SIZE 100
-#define RX_SIZE 100
+#define RX_SIZE 64
 
 /*________________________________ END SETTINGS ________________________________ */
 

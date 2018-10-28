@@ -13,7 +13,7 @@
 /** GLOBAL VARIABLES______________________________________________________________________________ */
 
 iButton_key_data_t iButton_data = { .super_master_key_code = {0x01,0x56,0xf1,0xbb,0x1a,0x00,0x00,0xef},
-                                    .command = '0',
+
                                     .reader_enable_flag = 1};
 
 
@@ -114,6 +114,8 @@ int main(void)
 
 	uint8_t key[8];
 	uint8_t pos = 0;
+
+	/** iButton reading. */
 	uint8_t prev_presence = 0;
 	uint8_t curr_presence = 0;
 
@@ -124,11 +126,14 @@ int main(void)
 	    if( reader_polling_flag ){
 	        if( curr_presence = ibutton_test_presence()){
 	            if(!iButton_data.reader_enable_flag)
-	               reading_disable_ms = READ_DISABLE_TIME;
+	                reading_disable_ms = READ_DISABLE_TIME;
 	            else if(!ibutton_read_it(iButton_data.key_code)){
-                   put_input(key_touched);
-                   fsm_input_flag = 1;
-                   iButton_data.reader_enable_flag = 0;
+	                if(compare_key(iButton_data.master_key_code, iButton_data.key_code))
+	                    put_input(key_touched);
+	                else
+	                    put_input(master_key_touched);
+	                fsm_input_flag = 1;
+	                iButton_data.reader_enable_flag = 0;
                 }
 	        }
 	        else if(prev_presence)
@@ -221,5 +226,6 @@ __interrupt void Timer0_A0_ISR(void){
     }
     if( !(--reading_disable_ms)){
         iButton_data.reader_enable_flag = 1;
+        put_input(key_away);
     }
 }

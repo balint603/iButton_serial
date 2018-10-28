@@ -18,7 +18,9 @@
 
 typedef enum inputs {
     key_touched,
+    master_key_touched,
     button_pressed,
+    key_away,
     timeout
 } inputs_t;
 
@@ -35,18 +37,17 @@ typedef struct iButton_key_data{
     uint8_t key_code[8];
     uint8_t master_key_code[8];
     const uint8_t super_master_key_code[8];
-    uint8_t key_code_n;
-    uint8_t compare_flag;
     volatile uint8_t reader_enable_flag;
-    uint8_t key_to_process;
-    char command;
     uint8_t buffer_rx[64];
+    uint16_t buffer_cnt;
+    uint16_t first_free_address;
 } iButton_key_data_t;
 
 void ibutton_fsm_init();
 void ibutton_fsm_change_state();
 void ibutton_fsm_switch_state_to(p_state_handler state);
 void put_input(inputs_t input);
+int compare_key(uint8_t *key1, uint8_t *key2);
 
 /** States: */
 void access_allow(inputs_t input);

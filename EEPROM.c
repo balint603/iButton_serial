@@ -139,10 +139,19 @@ int EEPROM_key_write(uint8_t *data, uint16_t address){
     SCL_0;
     return 0;
 }
+/**
+ *  A data értékét megváltoztatja a függvény?
+ * */
+int EEPROM_write_n_byte(uint8_t *data, uint8_t size, uint16_t address){
+    if(size > 64)           // Page size max
+        return 1;
+    if(!data)
+        return 1;
+    if(address > EEPROM_LAST_KEY_SPACE)
+        return 2;
 
-/*int EEPROM_page_write(uint8_t data, uint16_t address){
     SCL_0;
-    uint8_t datasize = 64;
+
     uint16_t address_MS_byte = address;
     address_MS_byte >>= 8;
 
@@ -153,16 +162,14 @@ int EEPROM_key_write(uint8_t *data, uint16_t address){
     ACK_SKIP;
     shift_byte((uint8_t)address);
     ACK_SKIP;
-    while(datasize-- > 0){
-        shift_byte(data);
+    while(size-- > 0){
+        shift_byte(*(data++));
         ACK_SKIP;
     }
-
     STOP_BIT;
     SCL_0;
     return 0;
-
-}*/
+}
 /**
  *  This function reads the 8 * uint8_t length data. (iButton sized).
  * */
@@ -224,6 +231,51 @@ int EEPROM_read_byte(uint8_t *byte, uint16_t address){
 
     STOP_BIT;
     SCL_0;
+    return 0;
+}
+/**
+ * \ret 0 If key not found.
+ * \ret 1 If key found.
+ * */
+int EEPROM_search_key(uint8_t *key_code, uint16_t addr_limit){
+    uint8_t i, byte, key_cmp_cnt;
+
+    SCL_0;
+    START_BIT;
+    shift_byte(write_command);                           // DEVICE ADDRESS
+    ACK_CHECK(1);
+    shift_byte(0);                // ADDRESS
+    ACK_SKIP;
+    shift_byte(0);
+    ACK_SKIP;
+
+    START_BIT;                                          // SET DEVICE TO READ MODE
+    shift_byte(write_command + 1);
+    ACK_SKIP;
+    while(addr_limit){
+        key_cmp_cnt = 6;
+
+        read_byte(&byte);
+        if(byte == 0xFF){                               // Not found.
+            ACK_NO;
+            STOP_BIT;
+            return 0;
+        }
+        ACK_CREATE;
+        for(i = 6; i > 0; i--){
+            read_byte(&byte);
+            ACK_CREATE;
+            if(byte == *(key_code+7-i))
+                key_cmp_cnt--;
+        }
+        read_byte(&byte);                               // Last byte also equals: Key found.
+        if( (byte == *(key_code+7)) && !key_cmp_cnt){
+            ACK_NO;
+            STOP_BIT;
+            return 1;
+        }else
+            ACK_CREATE;
+    }
     return 0;
 }
 
