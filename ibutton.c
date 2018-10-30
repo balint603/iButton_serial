@@ -51,8 +51,7 @@ static void write_command(){
  *  Initialization function.
  * */
 void ibutton_init(){
-    LED_TURN_OFF_RE;
-    LED_TURN_ON_GR;
+    RELEASE;
 }
 
 

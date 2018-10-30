@@ -16,6 +16,11 @@
 #define REL_ON REL_PORT_DIR |= REL_BIT
 #define REL_OFF REL_PORT_DIR &= ~REL_BIT
 
+
+#define READ_DISABLE_TIME 500 /* ms */
+#define READ_POLLING_TIME 10 /* ms */
+
+
 typedef enum inputs {
     key_touched,
     master_key_touched,
@@ -53,8 +58,14 @@ int compare_key(uint8_t *key1, uint8_t *key2);
 void access_allow(inputs_t input);
 void access_denied(inputs_t input);
 void master_mode(inputs_t input);
+void fast_add_mode(inputs_t input);
 void add_master_key(inputs_t input);
 void check_touch(inputs_t input);
+
+ibutton_fsm_t ibutton_fsm;
+uint_fast16_t reader_polling_ms;
+volatile uint8_t reader_polling_flag;
+uint_fast16_t reader_disable_ms;
 
 /** Input to serve */
 volatile extern uint8_t fsm_input_flag;

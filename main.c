@@ -7,17 +7,15 @@
 #include "EEPROM.h"
 #include "fsm.h"
 
-#define READ_DISABLE_TIME 500 /* ms */
-#define READ_POLLING_TIME 10 /* ms */
-
 /** GLOBAL VARIABLES______________________________________________________________________________ */
+
+extern uint16_t reader_polling_ms;
+extern volatile uint8_t reader_polling_flag;
+extern uint16_t reader_disable_ms;
 
 iButton_key_data_t iButton_data = { .super_master_key_code = {0x01,0x56,0xf1,0xbb,0x1a,0x00,0x00,0xef},
 
                                     .reader_enable_flag = 1};
-
-
-volatile uint8_t fsm_input_flag;
 
 volatile uint8_t uart_rx_buffer_not_empty_flag = 0;
 
@@ -28,11 +26,6 @@ volatile uint_fast16_t timeout_ms;
 volatile uint_fast16_t led_blink_ms = 500;
 volatile uint8_t led_blink_flag;
 uint8_t led_blink_enable;
-
-uint_fast16_t reader_polling_ms = READ_POLLING_TIME;
-volatile uint8_t reader_polling_flag = 1;
-uint_fast16_t reading_disable_ms;
-
 
 volatile uint8_t key_code[8];
 /** GLOBAL VARIABLES END___________________________________________________________________________ */
@@ -91,85 +84,21 @@ int main(void)
     init_ports();
     init_system_timer();
     uart_init(iButton_data.buffer_rx, 64);
+    __enable_interrupt();
     ibutton_init();
     ibutton_fsm_init();
-	LED_TURN_ON_GR;
-
-	/** Get settings data from the EEPROM Start_______________________________________________ */
-	EEPROM_key_read(iButton_data.master_key_code, EEPROM_MASTER_KEY_PLACE);
-	if(iButton_data.master_key_code[0] != 0x01){
-	    uart_send_str("First start EEPROM erase.", 1);
-	    EEPROM_clear_ff();
-	    uart_send_str("Please touch a master key.", 1);
-
-	    ibutton_fsm_switch_state_to(add_master_key);
-	    fsm_input_flag = 1;
-	    __delay_cycles(60000);
-	    __delay_cycles(60000);
-	}
-	/** Get settings data from the EEPROMend__________________________________________________ */
 
 	// \todo sys check.
 	uart_send_str("System OK", 1);
 
 	uint8_t key[8];
 	uint8_t pos = 0;
-
-	/** iButton reading. */
-	uint8_t prev_presence = 0;
-	uint8_t curr_presence = 0;
-
-	__enable_interrupt();
 	while(1){
-
-	    /* iButton reading start__________________________________________ */
-	    if( reader_polling_flag ){
-	        if( curr_presence = ibutton_test_presence()){
-	            if(!iButton_data.reader_enable_flag)
-	                reading_disable_ms = READ_DISABLE_TIME;
-	            else if(!ibutton_read_it(iButton_data.key_code)){
-	                if(compare_key(iButton_data.master_key_code, iButton_data.key_code))
-	                    put_input(key_touched);
-	                else
-	                    put_input(master_key_touched);
-	                fsm_input_flag = 1;
-	                iButton_data.reader_enable_flag = 0;
-                }
-	        }
-	        else if(prev_presence)
-                reading_disable_ms = READ_DISABLE_TIME;
-	        prev_presence = curr_presence;
-            reader_polling_flag = 0;
-	    }
-	    /* iButton reading end___________________________________________ */
-
-	    /* Check button start____________________________________________ */
 	    // todo implement button check (maybe interrupt)
-	    /* Check button end______________________________________________ */
+	    ibutton_read();
 
-	    if(fsm_input_flag){
+	    if(ibutton_fsm.input_to_serve){
 	        ibutton_fsm_change_state();
-	    }
-
-	    if(!led_blink_ms){
-            switch (led_blink_enable) {
-                case 1:
-                    LED_BLINK_GR;
-                    led_blink_ms = 499;
-                    break;
-                case 2:
-                    LED_BLINK_RE;
-                    led_blink_ms = 499;
-                    break;
-                case 3:
-                    LED_BLINK_GR;
-                    LED_BLINK_RE;
-                    led_blink_ms = 499;
-                    break;
-                default:
-
-                    break;
-            }
 	    }
 
 	    /* Debug START____________________________________________________*/
@@ -215,16 +144,36 @@ __interrupt void Timer0_A0_ISR(void){
     }
     if(!(--timeout_ms)){
         put_input(timeout);
-        fsm_input_flag = 1;
+        ibutton_fsm.input_to_serve = 1;
     }
     if(led_blink_ms){
         led_blink_ms--;
+    }
+    else{
+        switch (led_blink_enable){
+            case 1:
+                LED_BLINK_GR;
+                led_blink_ms = 499;
+                break;
+            case 2:
+                LED_BLINK_RE;
+                led_blink_ms = 499;
+                break;
+            case 3:
+                LED_BLINK_GR;
+                LED_BLINK_RE;
+                led_blink_ms = 499;
+                break;
+            default:
+
+                break;
+        }
     }
     if( !( --reader_polling_ms )){
         reader_polling_flag = 1;
         reader_polling_ms = READ_POLLING_TIME;
     }
-    if( !(--reading_disable_ms)){
+    if( !(--reader_disable_ms)){
         iButton_data.reader_enable_flag = 1;
         put_input(key_away);
     }

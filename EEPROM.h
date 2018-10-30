@@ -26,7 +26,7 @@
 #define SCL_PIN BIT5
 #define SCL_PORT_OUT P2OUT
 
-/*     EEPROM_type      */
+/*     EEPROM specific parameters      */
 #define EEPROM_LAST_KEY_SPACE 32744 /* B */
 #define EEPROM_TIME_SETTING_PLACE (EEPROM_LAST_KEY_SPACE + 8)
 
