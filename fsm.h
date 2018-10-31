@@ -43,7 +43,7 @@ typedef struct iButton_key_data{
     uint8_t master_key_code[8];
     const uint8_t super_master_key_code[8];
     volatile uint8_t reader_enable_flag;
-    uint8_t buffer_rx[64];
+    uint8_t buffer[64];
     uint16_t buffer_cnt;
     uint16_t first_free_address;
 } iButton_key_data_t;

@@ -219,20 +219,33 @@ int EEPROM_read_byte(uint8_t *byte, uint16_t address){
 
     START_BIT;                                          // SET DEVICE TO READ MODE
     shift_byte(write_command + 1);
-    ACK_SKIP;
+    ACK_CHECK(1);
 
     read_byte(byte);
 
-    SCL_0;                                              // After the byte, no acknowledgment bit is given to stop reading process.
-    SDA_1;
-    wait_us(BIT_TIME);
-    SCL_1;
-    wait_us(BIT_TIME);
+    ACK_NO;
 
     STOP_BIT;
     SCL_0;
     return 0;
 }
+/**
+ * \ret address if free space found.
+ * \ret 1 if not.
+ * */
+uint16_t EEPROM_get_first_free_addr(uint16_t *cur_addr){
+    uint8_t cur_byte;
+
+    for(*cur_addr = 0; *cur_addr <= EEPROM_LAST_KEY_SPACE; *cur_addr += 8){
+        if(EEPROM_read_byte(&cur_byte, *cur_addr))
+            return 1;
+        uart_send_byte(48+cur_byte);
+        if(cur_byte != 1 && cur_byte != 0)
+            return 0;
+    }
+    return 1;
+}
+
 /**
  * \ret 0 If key not found.
  * \ret 1 If key found.

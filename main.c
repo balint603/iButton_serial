@@ -19,7 +19,7 @@ iButton_key_data_t iButton_data = { .super_master_key_code = {0x01,0x56,0xf1,0xb
 
 volatile uint8_t uart_rx_buffer_not_empty_flag = 0;
 
-uint_fast16_t LED_ms = 500;
+uint_fast16_t LED_ms = 125;
 volatile uint8_t LED_flag;
 
 volatile uint_fast16_t timeout_ms;
@@ -83,8 +83,12 @@ int main(void)
     init_clk();
     init_ports();
     init_system_timer();
-    uart_init(iButton_data.buffer_rx, 64);
+    uart_init();
     __enable_interrupt();
+    __delay_cycles(60000);
+    __delay_cycles(60000);
+    __delay_cycles(60000);
+    __delay_cycles(60000);
     ibutton_init();
     ibutton_fsm_init();
 
@@ -115,14 +119,16 @@ int main(void)
 
 	            pos += 8;
 	        }
-	        else if(pos <= 32){
+	        else if(pos <= 80){
 
 	            EEPROM_key_read(key, pos);
 	            uart_send_ibutton_data(key, 1);
 	            uart_send_str("",1);
 	            pos += 8;
 
-	        }else if(pos == 40){
+	        }else if(pos == 88){
+	            EEPROM_key_read(key, EEPROM_MASTER_KEY_PLACE);
+	            uart_send_ibutton_data(key, 1);
 	            uart_send_str("<debug info end", 1);
 	            pos += 8;
 	        }
@@ -140,7 +146,7 @@ __interrupt void Timer0_A0_ISR(void){
 
     if(!(--LED_ms)){    // DEBUG LED
         LED_flag = 1;
-        LED_ms = 250;
+        LED_ms = 125;
     }
     if(!(--timeout_ms)){
         put_input(timeout);

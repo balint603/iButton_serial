@@ -49,6 +49,8 @@ int EEPROM_key_read(uint8_t *data, uint16_t address);
 
 int EEPROM_read_byte(uint8_t *byte, uint16_t address);
 
+uint16_t EEPROM_get_first_free_addr(uint16_t *cur_addr);
+
 int EEPROM_search_key(uint8_t *key_code, uint16_t addr_limit);
 
 uint16_t EEPROM_get_key_or_empty_place(uint8_t *key_code, uint16_t *addr, uint16_t *first_free_addr, uint16_t addr_limit, uint8_t reading_dir);

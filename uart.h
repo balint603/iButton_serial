@@ -19,7 +19,7 @@
 
 /*________________________________ END SETTINGS ________________________________ */
 
-void uart_init(uint8_t *RX_buf, uint8_t size);
+void uart_init();
 
 uint16_t uart_get_buffer_bytes();
 
