@@ -46,6 +46,8 @@ typedef struct iButton_key_data{
     uint8_t buffer[64];
     uint16_t buffer_cnt;
     uint16_t first_free_address;
+    uint8_t opening_time;
+    uint8_t mode;
 } iButton_key_data_t;
 
 void ibutton_fsm_init();
@@ -53,6 +55,8 @@ void ibutton_fsm_change_state();
 void ibutton_fsm_switch_state_to(p_state_handler state);
 void put_input(inputs_t input);
 int compare_key(uint8_t *key1, uint8_t *key2);
+
+void ibutton_command();
 
 /** States: */
 void access_allow(inputs_t input);

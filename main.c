@@ -14,7 +14,6 @@ extern volatile uint8_t reader_polling_flag;
 extern uint16_t reader_disable_ms;
 
 iButton_key_data_t iButton_data = { .super_master_key_code = {0x01,0x56,0xf1,0xbb,0x1a,0x00,0x00,0xef},
-
                                     .reader_enable_flag = 1};
 
 volatile uint8_t uart_rx_buffer_not_empty_flag = 0;
@@ -92,6 +91,13 @@ int main(void)
     ibutton_init();
     ibutton_fsm_init();
 
+
+    EEPROM_read_byte(&iButton_data.opening_time, EEPROM_TIME_DATA);
+    if(iButton_data.opening_time == 0xFF){
+        iButton_data.opening_time = 2;
+    }
+    EEPROM_read_byte(&iButton_data.mode, EEPROM_MODE_DATA);
+
 	// \todo sys check.
 	uart_send_str("System OK", 1);
 
@@ -104,6 +110,9 @@ int main(void)
 	    if(ibutton_fsm.input_to_serve){
 	        ibutton_fsm_change_state();
 	    }
+
+	    if(uart_rx_buffer_not_empty_flag)
+	        ibutton_command();
 
 	    /* Debug START____________________________________________________*/
 	    if(LED_flag){

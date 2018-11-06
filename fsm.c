@@ -23,7 +23,10 @@
 uint8_t prev_presence = 0;
 uint8_t curr_presence = 0;
 
+uint8_t time_s;
 
+typedef enum command_state { cmd_wait, cmd_wait_for_master, cmd_wait_cmd, cmd_time_data, cmd_change_open_mode } command_state_t;
+command_state_t cmd_state = cmd_wait;
 
 void ibutton_fsm_init(){
     reader_polling_ms = READ_POLLING_TIME;
@@ -154,20 +157,114 @@ int search_key_and_write(){
     }
     return 0;
 }
+/**
+ * 07h Master
+ * */
+void ibutton_command(){
+    uint8_t d_byte;
+    switch (cmd_state) {
+        case cmd_wait:
+            if(uart_get_byte() == 0x07){
+                cmd_state = cmd_wait_for_master;
+                uart_send_str("Please send master code!", 1);
+            }
+            break;
+        case cmd_wait_for_master:
+            if(uart_get_buffer_bytes() > 7){
+                int i;
+                uint8_t key[8];
+                for(i = 8; i > 0; i--){
+                    key[8-i] = uart_get_byte();
+                }
+                if(!compare_key(iButton_data.master_key_code, key)){
+                    cmd_state = cmd_wait_cmd;
+                    uart_send_str("1 : change opening t., 2: change mode", 1);
+                }
+                else{
+                    uart_send_str("Wrong code!", 1);
+                    cmd_state = cmd_wait;
+                }
+            }
+            break;
+        case cmd_wait_cmd:
+            switch (uart_get_byte()) {
+                case 0x01:
+                    uart_send_str("<00h - FFh>", 1);
+                    cmd_state = cmd_time_data;
+                    break;
+                case 0x02:
+                    uart_send_str("<Bistabil mode: 0>", 1);
+                    cmd_state = cmd_change_open_mode;
+                    break;
+                default:
+                    cmd_state = cmd_wait;
+                    break;
+            }
 
+            break;
+        case cmd_time_data:
+            d_byte = uart_get_byte();
+            if(EEPROM_write_n_byte(&d_byte, 1, EEPROM_TIME_DATA))
+                uart_send_str("EEPROM error", 1);
+            if(d_byte == 0xFF){
+                iButton_data.opening_time = 2;
+            }
+            else{
+                iButton_data.opening_time = d_byte;
+                uart_send_str("Saved.", 1);
+            }
+            cmd_state = cmd_wait_cmd;
+            break;
+        case cmd_change_open_mode:
+            d_byte = uart_get_byte();
+            if(EEPROM_write_n_byte(&d_byte, 1, EEPROM_MODE_DATA))
+                uart_send_str("EEPROM error", 1);
+            else{
+                iButton_data.mode = d_byte;
+                uart_send_str("Saved.", 1);
+            }
+            cmd_state = cmd_wait_cmd;
+            break;
+        default:
+            ;
+            break;
+    }
+}
 
 /* State functions start___________________________________________________________________________________ */
 
+void access_allow_bistable(inputs_t input){
+
+    uint16_t addr = 0;
+    uint16_t addr_ff = 0;
+
+    REL_ON;
+     LED_TURN_OFF_GR;
+     switch (input){
+     case key_touched:
+         if(EEPROM_get_key_or_empty_place(iButton_data.key_code, &addr, &addr_ff, EEPROM_LAST_KEY_SPACE, 0) == 1){
+             uart_send_str("RELAY=OFF", 1);
+             LED_TURN_ON_GR;
+             REL_OFF;
+             ibutton_fsm.current_state = check_touch;
+         }
+         break;
+     }
+     ibutton_fsm.input_to_serve = 0;
+}
 
 void access_allow(inputs_t input){
     REL_ON;
     LED_TURN_OFF_GR;
     switch (input){
     case timeout:
-        uart_send_str("RELAY=OFF", 1);
-        LED_TURN_ON_GR;
-        REL_OFF;
-        ibutton_fsm.current_state = check_touch;
+        if(!--time_s){
+            uart_send_str("RELAY=OFF", 1);
+            LED_TURN_ON_GR;
+            REL_OFF;
+            ibutton_fsm.current_state = check_touch;
+        }
+        timeout_ms = 1000;
         break;
     }
     ibutton_fsm.input_to_serve = 0;
@@ -379,10 +476,16 @@ void check_touch(inputs_t input){
         if(EEPROM_get_key_or_empty_place(iButton_data.key_code, &addr, &addr_ff, EEPROM_LAST_KEY_SPACE, 0) == 1){
             uart_send_str("RELAY=ON", 1);
             // \todo Check opening time settings here.
-            timeout_ms = 2000;
+            if(iButton_data.mode){
+                timeout_ms = 1000;
+                time_s = iButton_data.opening_time;
+                ibutton_fsm.current_state = access_allow;
+            }
+            else{
+                ibutton_fsm.current_state = access_allow_bistable;
+            }
             LED_TURN_OFF_GR;
             REL_ON;
-            ibutton_fsm.current_state = access_allow;
         }
         else{
             uart_send_str("ACCESS DENIED!",1);

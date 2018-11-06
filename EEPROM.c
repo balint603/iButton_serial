@@ -147,7 +147,7 @@ int EEPROM_write_n_byte(uint8_t *data, uint8_t size, uint16_t address){
         return 1;
     if(!data)
         return 1;
-    if(address > EEPROM_LAST_KEY_SPACE)
+    if(address > EEPROM_MASTER_KEY_PLACE)
         return 2;
 
     SCL_0;
