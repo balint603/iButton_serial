@@ -43,9 +43,9 @@ void ibutton_init();
 
 int ibutton_test_presence();
 
-int ibutton_read_it(uint8_t *data);
+int ibutton_read_it(uint16_t *data);
 
-uint8_t ibutton_crc8(uint8_t *data);
+//uint8_t ibutton_crc8(uint8_t *data);
 
 
 #endif /* IBUTTON_H_ */

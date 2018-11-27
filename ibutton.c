@@ -15,7 +15,7 @@
 
 #define wait_us(n) ( __delay_cycles(n_cycle_to_us*n) )
 
-const uint8_t command_byte = 0x33;
+static const uint8_t command_byte = 0x33;
 
 
 
@@ -76,43 +76,67 @@ int ibutton_test_presence(){
     return pin_state_temp ? 0 : 1 ;
 }
 /**
- * Read the iButton ROM into the input buffer.
+ * Read the iButton ROM into the input buffer. todo test it 16 bit version
  * This function must be called, when an iButton has just been connected to the reader.
- * \param uint8_t *data must be a buffer, with size of 8 byte.
+ * \param uint16_t *data must be a buffer, with size of 3 word.
  * \ret 0 when the computed crc equals the MSB from the ROM data and LSB equals 01h (iButton family code).
  * \ret 1 when the computed crc OR the family code does not match.
  * */
-int ibutton_read_it(uint8_t *data){
-    int i,k;
-    uint8_t databyte, databit, crc = 0;
+int ibutton_read_it(uint16_t *data){
+    uint8_t i,k;
+    uint8_t databit, crc = 0, first_byte, crc_byte;
     uint8_t temp;
 
     write_command();
     wait_us(480);
 
-    for(i = 0; i < 8; i++){     // READING process start here
-        databyte = 0;
-        for(k = 0; k < 8; k++){
+    for(i = 8; i > 0; i--){     // Read family code
+        PULL_DOWN;
+        wait_us(5);
+        RELEASE;
+        wait_us(10);
+        first_byte >>= 1;
+        if(databit = GET_INPUT)
+            first_byte |= 128;
+        temp = (crc & 0x01) ^ databit;
+        crc >>= 1;
+        if(temp)
+            crc ^= 0x8C;
+        wait_us(50);
+    }
+    if(first_byte != 0x01)
+        return 1;
+    for(i = 3; i > 0; i--){     // Read serial number part
+        for(k = 16; k > 0; k--){
             PULL_DOWN;
             wait_us(5);
             RELEASE;
             wait_us(10);
-            databit = GET_INPUT;
-            databyte = databyte | (databit << k);
-            if(i < 7){
-                temp = (crc & 0x01) ^ databit;
-                crc >>= 1;
-                if(temp)
-                    crc ^= 0x8C;
-            }
+            *(data) >>= 1;
+            if(databit = GET_INPUT)
+                *(data) |= 0x8000;
+            temp = (crc & 0x01) ^ databit;
+            crc >>= 1;
+            if(temp)
+                crc ^= 0x8C;
             wait_us(50);
         }
-        *(data+i) = databyte;
-    }   // READING process end here
-    return *(data+7) != crc || *(data) != 0x01 ? 1 : 0;        // CRC!
+        data++;
+    }
+    for(i = 8; i > 0; i--){     // Read CRC
+        PULL_DOWN;
+        wait_us(5);
+        RELEASE;
+        wait_us(10);
+        crc_byte >>= 1;
+        if(databit = GET_INPUT)
+            crc_byte |= 128;
+        wait_us(50);
+    }
+    return crc == crc_byte ? 0 : 1;
 }
 
-uint8_t ibutton_crc8(uint8_t *data) {
+/*uint8_t ibutton_crc8(uint8_t *data) {
     uint8_t i;
     uint8_t k;
     uint8_t temp;
@@ -133,4 +157,4 @@ uint8_t ibutton_crc8(uint8_t *data) {
     }
 
     return crc;
-}
+}*/

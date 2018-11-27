@@ -4,7 +4,7 @@
 
 #include "ibutton.h"
 #include "uart.h"
-#include "EEPROM.h"
+#include "flash.h"
 #include "fsm.h"
 
 /** GLOBAL VARIABLES______________________________________________________________________________ */
@@ -13,7 +13,10 @@ extern uint16_t reader_polling_ms;
 extern volatile uint8_t reader_polling_flag;
 extern uint16_t reader_disable_ms;
 
-iButton_key_data_t iButton_data = { .super_master_key_code = {0x01,0x56,0xf1,0xbb,0x1a,0x00,0x00,0xef},
+iButton_key_data_t iButton_data = {
+                                    .master_key_code_ptr = (uint16_t*)FLASH_MASTER_CODE,
+                                    .opening_time_ptr = (uint16_t*)FLASH_TIME,
+                                    .mode_ptr = (uint16_t*)FLASH_MODE,
                                     .reader_enable_flag = 1};
 
 volatile uint8_t uart_rx_buffer_not_empty_flag = 0;
@@ -26,7 +29,6 @@ volatile uint_fast16_t led_blink_ms = 500;
 volatile uint8_t led_blink_flag;
 uint8_t led_blink_enable;
 
-volatile uint8_t key_code[8];
 /** GLOBAL VARIABLES END___________________________________________________________________________ */
 
 /** INITIALIZATION FUNCTIONS START_______________________________________________________________ */
@@ -83,26 +85,14 @@ int main(void)
     init_ports();
     init_system_timer();
     uart_init();
-    __enable_interrupt();
-    __delay_cycles(60000);
-    __delay_cycles(60000);
-    __delay_cycles(60000);
-    __delay_cycles(60000);
+
     ibutton_init();
     ibutton_fsm_init();
-
-
-    EEPROM_read_byte(&iButton_data.opening_time, EEPROM_TIME_DATA);
-    if(iButton_data.opening_time == 0xFF){
-        iButton_data.opening_time = 2;
-    }
-    EEPROM_read_byte(&iButton_data.mode, EEPROM_MODE_DATA);
-
+    flash_init();
 	// \todo sys check.
-	uart_send_str("System OK", 1);
+	uart_send_str("System Start", 1);
 
-	uint8_t key[8];
-	uint8_t pos = 0;
+    __enable_interrupt();
 	while(1){
 	    // todo implement button check (maybe interrupt)
 	    ibutton_read();
@@ -111,38 +101,27 @@ int main(void)
 	        ibutton_fsm_change_state();
 	    }
 
-	    if(uart_rx_buffer_not_empty_flag)
-	        ibutton_command();
-
-	    /* Debug START____________________________________________________*/
 	    if(LED_flag){
 	        P1OUT ^= BIT6;
 	        LED_flag = 0;
-
-	        // DEBUG INFO
-	        if(pos == 0){
-	            uart_send_str("debug info start>", 1);
-	            EEPROM_key_read(key, pos);
-                uart_send_ibutton_data(key, 1);
-                uart_send_str("",1);
-
-	            pos += 8;
+        }
+	    if(led_blink_flag){
+	        switch(led_blink_enable){
+                case 1:
+                    LED_BLINK_GR;
+                    break;
+                case 2:
+                    LED_BLINK_RE;
+                    break;
+                case 3:
+                    LED_BLINK_GR;
+                    LED_BLINK_RE;
+                    break;
+                default:
+                break;
 	        }
-	        else if(pos <= 80){
-
-	            EEPROM_key_read(key, pos);
-	            uart_send_ibutton_data(key, 1);
-	            uart_send_str("",1);
-	            pos += 8;
-
-	        }else if(pos == 88){
-	            EEPROM_key_read(key, EEPROM_MASTER_KEY_PLACE);
-	            uart_send_ibutton_data(key, 1);
-	            uart_send_str("<debug info end", 1);
-	            pos += 8;
-	        }
+	        led_blink_flag = 0;
 	    }
-	    /* Debug END_____________________________________________________*/
 	}
 	return 0;
 }
@@ -161,29 +140,12 @@ __interrupt void Timer0_A0_ISR(void){
         put_input(timeout);
         ibutton_fsm.input_to_serve = 1;
     }
-    if(led_blink_ms){
-        led_blink_ms--;
-    }
-    else{
-        switch (led_blink_enable){
-            case 1:
-                LED_BLINK_GR;
-                led_blink_ms = 499;
-                break;
-            case 2:
-                LED_BLINK_RE;
-                led_blink_ms = 499;
-                break;
-            case 3:
-                LED_BLINK_GR;
-                LED_BLINK_RE;
-                led_blink_ms = 499;
-                break;
-            default:
-
-                break;
+    if(led_blink_enable)
+        if(!(--led_blink_ms)){
+            led_blink_flag = 1;
+            led_blink_ms = 500;
         }
-    }
+
     if( !( --reader_polling_ms )){
         reader_polling_flag = 1;
         reader_polling_ms = READ_POLLING_TIME;
