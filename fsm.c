@@ -3,6 +3,10 @@
  *
  *  Created on: 2018. okt. 27.
  *      Author: MAJXAAPPTE
+ *
+ *
+ *  Description:
+ *  This module is a finite state machine. Using state functions and a global pointer which points to a state function.
  */
 
 #include <msp430.h>
@@ -12,11 +16,13 @@
 #include "flash.h"
 #include "ibutton.h"
 
+/** LED blink */
 #define NONE 0
 #define ONLY_GREEN 1
 #define ONLY_RED 2
 #define BOTH 3
 
+/** State functions */
 static void access_allow_bistable(inputs_t input);
 static void access_allow(inputs_t input);
 static void access_denied(inputs_t input);
@@ -32,11 +38,10 @@ uint8_t prev_presence = 0;
 uint8_t curr_presence = 0;
 
 uint8_t time_s;
-
-void ibutton_fsm_change_state(){
-    ibutton_fsm.current_state(ibutton_fsm.input);
-}
-
+/**
+ * Initialization.
+ * If the
+ * */
 void ibutton_fsm_init(){
     uint16_t data_ff[] = {0xFFFF,0xFFFF,0xFFFF};
 
@@ -71,25 +76,29 @@ void ibutton_fsm_init(){
 }
 
 void ibutton_read(){
-    if( reader_polling_flag ){
-        if( curr_presence = ibutton_test_presence()){
-            if(!iButton_data.reader_enable_flag)
-                reader_disable_ms = READ_DISABLE_TIME;
-            else if(!ibutton_read_it(iButton_data.key_code)){
 
-                if(compare_key((uint16_t*)iButton_data.master_key_code_ptr, iButton_data.key_code))
-                    put_input(key_touched);
-                else
-                    put_input(master_key_touched);
-                ibutton_fsm.input_to_serve = 1;
-                iButton_data.reader_enable_flag = 0;
-            }
-        }
-        else if(prev_presence)
+    if( curr_presence = ibutton_test_presence()){
+        if(!iButton_data.reader_enable_flag)
             reader_disable_ms = READ_DISABLE_TIME;
-        prev_presence = curr_presence;
-        reader_polling_flag = 0;
+        else if(!ibutton_read_it(iButton_data.key_code)){
+
+            if(compare_key((uint16_t*)iButton_data.master_key_code_ptr, iButton_data.key_code))
+                put_input(key_touched);
+            else
+                put_input(master_key_touched);
+            ibutton_fsm.input_to_serve = 1;
+            iButton_data.reader_enable_flag = 0;
+        }
     }
+    else if(prev_presence)
+        reader_disable_ms = READ_DISABLE_TIME;
+    prev_presence = curr_presence;
+    reader_polling_flag = 0;
+
+}
+
+void ibutton_fsm_change_state(){
+    ibutton_fsm.current_state(ibutton_fsm.input);
 }
 
 void put_input(inputs_t input){

@@ -1,4 +1,4 @@
-#include <msp430.h> 
+#include <msp430g2553.h>
 #include <inttypes.h>
 #include <intrinsics.h>
 
@@ -49,9 +49,14 @@ void init_system_timer(){
     /**
      * System Timer (1ms)
      * */
-    TACCR0 = 11999;
-    TACTL = MC_1 | ID_0 |TASSEL_2 | TACLR;
+    TACCR0 = 1499;  // 1KHz
+    TACTL = MC_1 | ID_3 |TASSEL_2 | TACLR;
     TACCTL0 |= CCIE;
+    /**
+     * Piezo timer
+     * */
+    TACCR1 = 749;   // 2KHz
+
 }
 
 void init_ports(){
@@ -95,7 +100,8 @@ int main(void)
     __enable_interrupt();
 	while(1){
 	    // todo implement button check (maybe interrupt)
-	    ibutton_read();
+	    if( reader_polling_flag )
+	        ibutton_read();
 
 	    if(ibutton_fsm.input_to_serve){
 	        ibutton_fsm_change_state();
