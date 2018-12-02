@@ -39,6 +39,7 @@ int flash_init(){
     uint16_t *flag_ptr = (uint16_t*)SEGMENT_0;
     uint8_t data_segment_cnt = 0, reserved_segment_cnt = 0;
     int ret_val = 0;
+    uint16_t cur_flag;
 
     while((uint16_t)flag_ptr <= SEGMENT_8){
         switch(*flag_ptr) {
@@ -48,24 +49,23 @@ int flash_init(){
                     ret_val = 2;
                 break;
             case 0xC0DE:                           // Segment including codes found.
-                if(++data_segment_cnt >= 8)
+                if(++data_segment_cnt >= 9)
                     // todo Erase this segment, check if all 0xFF?
                     ret_val = 1;
                 break;
             default:                                // Erase and tag segment.
                 // todo erase this segment
                 if(!reserved_segment_cnt){
-                    flash_write_word(0xEAFF, (uint16_t)flag_ptr);
-                    if(*flag_ptr != 0xEAFF)
-                        return 1;
+                    cur_flag = 0xEAFF;
                     reserved_segment_cnt++;
                 }
                 else{
-                    flash_write_word(0xC0DE, (uint16_t)flag_ptr);
-                    if(*flag_ptr != 0xC0DE)
-                        return 1;
+                    cur_flag = 0xCODE;
                     data_segment_cnt++;
                 }
+                flash_write_word(cur_flag, (uint16_t)flag_ptr);
+                if(*flag_ptr != cur_flag)
+                    return 1;
                 break;
         }
         flag_ptr += 256;
