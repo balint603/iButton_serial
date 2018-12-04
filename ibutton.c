@@ -42,7 +42,6 @@ static void write_command(){
         }
         data >>= 1;
     }
-
 }
 
 
@@ -129,7 +128,7 @@ int ibutton_read_it(uint16_t *data){
         RELEASE;
         wait_us(10);
         crc_byte >>= 1;
-        if(databit = GET_INPUT)
+        if(GET_INPUT)
             crc_byte |= 128;
         wait_us(50);
     }

@@ -9,25 +9,11 @@
 
 /** GLOBAL VARIABLES______________________________________________________________________________ */
 
-extern uint16_t reader_polling_ms;
-extern volatile uint8_t reader_polling_flag;
-extern uint16_t reader_disable_ms;
-
-iButton_key_data_t iButton_data = {
-                                    .master_key_code_ptr = (uint16_t*)FLASH_MASTER_CODE,
-                                    .opening_time_ptr = (uint16_t*)FLASH_TIME,
-                                    .mode_ptr = (uint16_t*)FLASH_MODE,
-                                    .reader_enable_flag = 1};
-
 volatile uint8_t uart_rx_buffer_not_empty_flag = 0;
 
-uint_fast16_t LED_ms = 125;
-volatile uint8_t LED_flag;
-
-volatile uint_fast16_t timeout_ms;
-volatile uint_fast16_t led_blink_ms = 500;
-volatile uint8_t led_blink_flag;
-uint8_t led_blink_enable;
+extern uint8_t user_feedback;
+extern volatile uint8_t led_blink_flag;
+extern volatile uint8_t LED_flag;
 
 /** GLOBAL VARIABLES END___________________________________________________________________________ */
 
@@ -49,20 +35,20 @@ void init_system_timer(){
     /**
      * System Timer (1ms)
      * */
-    TACCR0 = 1499;  // 1KHz
+    TACCR0 = 749;  // 1KHz
     TACTL = MC_1 | ID_3 |TASSEL_2 | TACLR;
     TACCTL0 |= CCIE;
     /**
-     * Piezo timer
+     * Piezo SETTINGS
      * */
-    TACCR1 = 749;   // 2KHz
+    TACCR1 = 349;   // 2KHz
 
 }
 
 void init_ports(){
-    P1DIR |= BIT0 + BIT6;
+    P1DIR |= BIT0;
     P2DIR |= BIT5;
-    P1OUT &= ~(BIT0 + BIT6);
+    P1OUT &= ~(BIT0);
     P2OUT &= ~(BIT5 + BIT4 + BIT3 + BIT2 + BIT1 + BIT0);
     P2DIR &= ~BIT3;
 }
@@ -96,7 +82,8 @@ int main(void)
     flash_init();
 	// \todo sys check.
 	uart_send_str("System Start", 1);
-
+	uint8_t sound_mode = 1;
+	make_sound(sound_mode, 1000);
     __enable_interrupt();
 	while(1){
 	    // todo implement button check (maybe interrupt)
@@ -107,12 +94,8 @@ int main(void)
 	        ibutton_fsm_change_state();
 	    }
 
-	    if(LED_flag){
-	        P1OUT ^= BIT6;
-	        LED_flag = 0;
-        }
-	    if(led_blink_flag){
-	        switch(led_blink_enable){
+        if(led_blink_flag){
+            switch(user_feedback){
                 case 1:
                     LED_BLINK_GR;
                     break;
@@ -120,44 +103,23 @@ int main(void)
                     LED_BLINK_RE;
                     break;
                 case 3:
+                    sound_mode = !sound_mode;
+                    make_sound(sound_mode, 120);
                     LED_BLINK_GR;
                     LED_BLINK_RE;
                     break;
+                case 4:
+                    make_sound(0, 30);
                 default:
                 break;
-	        }
-	        led_blink_flag = 0;
-	    }
+            }
+            led_blink_flag = 0;
+        }
+	    if(LED_flag){
+	        P1OUT ^= BIT0;
+
+	        LED_flag = 0;
+        }
 	}
 	return 0;
-}
-
-/**
- * Interrupt routines:
- * */
-#pragma vector=TIMER0_A0_VECTOR
-__interrupt void Timer0_A0_ISR(void){
-
-    if(!(--LED_ms)){    // DEBUG LED
-        LED_flag = 1;
-        LED_ms = 125;
-    }
-    if(!(--timeout_ms)){
-        put_input(timeout);
-        ibutton_fsm.input_to_serve = 1;
-    }
-    if(led_blink_enable)
-        if(!(--led_blink_ms)){
-            led_blink_flag = 1;
-            led_blink_ms = 500;
-        }
-
-    if( !( --reader_polling_ms )){
-        reader_polling_flag = 1;
-        reader_polling_ms = READ_POLLING_TIME;
-    }
-    if( !(--reader_disable_ms)){
-        iButton_data.reader_enable_flag = 1;
-        put_input(key_away);
-    }
 }

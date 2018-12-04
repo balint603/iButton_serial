@@ -17,16 +17,21 @@
 #define REL_ON REL_PORT_DIR |= REL_BIT
 #define REL_OFF REL_PORT_DIR &= ~REL_BIT
 
-#define READ_DISABLE_TIME 500 /* ms */
-#define READ_POLLING_TIME 10 /* ms */
-#define OPENING_TIME_BASIC 5000 /* ms */
+#define PIEZO_PORT_DIR P1DIR
+#define PIEZO_PORT_SEL P1SEL
+#define PIEZO_BIT BIT6
+
+#define READ_DISABLE_TIME 1000 /* ms/2 */
+#define READ_POLLING_TIME 20 /* ms/2 */
+#define OPENING_TIME_BASIC 10 /* 100ms */
 
 typedef enum inputs {
     key_touched,
     master_key_touched,
     button_pressed,
     key_away,
-    timeout
+    timeout,
+    relay_timeout
 } inputs_t;
 
 typedef void ( *p_state_handler )(inputs_t input);
@@ -50,6 +55,7 @@ typedef struct iButton_key_data{
 void ibutton_fsm_init();
 void ibutton_fsm_change_state();
 void ibutton_read();
+void make_sound(uint8_t mode, uint16_t time);
 void put_input(inputs_t input);
 int compare_key(uint16_t *key1, uint16_t *key2);
 
@@ -59,12 +65,7 @@ volatile uint8_t reader_polling_flag;
 uint_fast16_t reader_disable_ms;
 
 /** Input to serve */
-volatile extern uint8_t fsm_input_flag;
-extern iButton_key_data_t iButton_data;
 
 extern uint8_t led_blink_enable;
-
-volatile extern uint_fast16_t led_blink_ms;
-volatile extern uint_fast16_t timeout_ms;
 
 #endif /* FSM_H_ */

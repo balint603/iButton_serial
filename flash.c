@@ -60,7 +60,7 @@ int flash_init(){
                     reserved_segment_cnt++;
                 }
                 else{
-                    cur_flag = 0xCODE;
+                    cur_flag = 0xC0DE;
                     data_segment_cnt++;
                 }
                 flash_write_word(cur_flag, (uint16_t)flag_ptr);
@@ -198,7 +198,7 @@ int flash_delete_key(uint16_t key_addr){
     uint16_t *free_flash_ptr;
     uint16_t *start_free_flash_ptr;
     uint16_t *start_flash_ptr;
-    uint8_t i,k,j,free_cnt;
+    uint8_t i,key_cnt,j,free_cnt;
     uint16_t zero_data[] = {0x0000,0x0000,0x0000};
 
     if(key_addr > SEGMENT_8 + 510)
@@ -227,7 +227,7 @@ int flash_delete_key(uint16_t key_addr){
     flash_ptr = start_flash_ptr + 1;
 
     i = 85;
-    k = 0;
+    key_cnt = 0;
     free_cnt = 3;
     while(i && free_cnt){    // End of the segment?
         if((uint16_t)flash_ptr != key_addr){
@@ -236,20 +236,20 @@ int flash_delete_key(uint16_t key_addr){
             for(j = 3; j > 0; j--){
                 if(*(flash_ptr) == 0xFFFF)
                     free_cnt--;
-                key_temp[k++] = *(flash_ptr++);
+                key_temp[key_cnt++] = *(flash_ptr++);
             }
-            if(k == 21){    // Check if buffer is full
-                flash_write_data(key_temp, k, (uint16_t)free_flash_ptr);
-                free_flash_ptr += k;
-                k = 0;
+            if(key_cnt == 21){    // Check if buffer is full
+                flash_write_data(key_temp, key_cnt, (uint16_t)free_flash_ptr);
+                free_flash_ptr += key_cnt;
+                key_cnt = 0;
             }
         }else   // Go to the next key code if the address is equal to the address of the key to be deleted.
             flash_ptr += 3;
         i--;
     }
-    if(k){
-        if(k <= (j =  512 - ((uint16_t)start_free_flash_ptr) - (uint16_t)free_flash_ptr ))    // Check enough place: do not overwrite!
-            flash_write_data(key_temp, k, (uint16_t)free_flash_ptr);
+    if(key_cnt){
+        if(key_cnt <= (j =  512 - ((uint16_t)start_free_flash_ptr) - (uint16_t)free_flash_ptr ))    // Check enough place: do not overwrite!
+            flash_write_data(key_temp, key_cnt, (uint16_t)free_flash_ptr);
         else
             flash_write_data(key_temp, j, (uint16_t)free_flash_ptr);
     }
