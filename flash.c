@@ -258,20 +258,36 @@ int flash_delete_key(uint16_t key_addr){
     flash_write_word(0xEAFF, (uint16_t)start_flash_ptr);
     return 0;
 }
-
-/*int flash_change_setting(uint16_t *value){
+/**
+ * \param change_from + FLASH_SETTING_START will be the first address.
+ * \param words_to_change number of words to be changed.
+ * \ret -1 wrong parameter.
+ * \ret 1 flash write failed.
+ * */
+int flash_change_settings(uint8_t change_from, uint16_t *data, uint8_t words_to_change){
 
     uint16_t data_tmp[SETTINGS_RANGE];
     uint16_t *flash_ptr = (uint16_t*)SETTINGS_START;
     uint8_t i;
-    for(i = 0; i < 6; i++){                // Save current data
-        data_tmp[i] = *(flash_ptr++);
+
+    if(words_to_change > SETTINGS_RANGE || data == 0)
+        return 1;
+    for(i = 0; i < SETTINGS_RANGE; i++){                // Save current data
+        if(i >= change_from && i < change_from + words_to_change){
+            data_tmp[i] = *(data++);
+            flash_ptr++;
+        }
+        else
+            data_tmp[i] = *(flash_ptr++);
     }
-    for(i = SETTINGS_RANGE;i > 0; i--)
-        data_tmp[setting_id++] = *(value++);
-    flash_write_data(data_tmp, 6, SETTINGS_START);
+    segment_erase(SETTINGS_START);
+    flash_write_data(data_tmp, SETTINGS_RANGE, SETTINGS_START);
+
+    for(i = 6; i > 0; i--)
+        if(*(data_tmp+i) != *(--flash_ptr))
+            return 1;
     return 0;
-}*/
+}
 
 /**
  * Erase a segment or all.
@@ -282,7 +298,7 @@ void segment_erase(uint16_t segment_addr){
     uint8_t i;
     // todo disable watchdog
     if(segment_addr >= SEGMENT_0 && segment_addr <= SEGMENT_8
-    || segment_addr == FLASH_MASTER_CODE){     // Single segment erase
+    || segment_addr == SETTINGS_START){     // Single segment erase
         i = 1;
         flash_ptr = (uint16_t*)segment_addr;
     }

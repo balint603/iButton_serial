@@ -14,12 +14,15 @@
 #define SEGMENT_8 0xF400
 
 #define SETTINGS_START        (0x1000)
-#define FLASH_MASTER_CODE     (0x1000)
-#define FLASH_TIME            (0x1006)
-#define FLASH_MODE            (0x1008)
-#define FLASH_ENABLE_BUTTON   (0x1010)
+#define FLASH_MASTER_CODE     (0)   // Words
+#define FLASH_TIME            (3)   // Words
+#define FLASH_MODE            (4)   // Words
+#define FLASH_ENABLE_BUTTON   (5)   // Words
 #define SETTINGS_RANGE 6 // Words
 
+#define FLASH_TIME_ADDR 0x1006
+#define FLASH_MODE_ADDR 0x1008
+#define FLASH_ENABLE_BUTTON_ADDR 0x100A
 
 int flash_init();
 
@@ -31,12 +34,7 @@ int flash_write_data(uint16_t *data, uint8_t size, uint16_t address);
 
 int flash_search_key(uint16_t *key, uint16_t *address);
 
-/**
- * \param setting_id TIME MODE or MASTER_CODE settings can be changed.
- * \ret 0 If new settings are saved.
- * \ret 1 Flash problem.
- * */
-int flash_change_setting(uint8_t setting_id, uint16_t *value);
+int flash_change_settings(uint8_t change_from, uint16_t *data, uint8_t words_to_change);
 
 int flash_delete_key(uint16_t key_addr);
 

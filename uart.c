@@ -42,7 +42,7 @@ void uart_init(){
 
     P1SEL |= BIT1 + BIT2;
     P1SEL2 |= BIT1 + BIT2;
-
+    P1OUT |= BIT2;
 
     UCA0CTL1 &= ~UCSWRST;
     IE2 |= UCA0RXIE;

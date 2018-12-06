@@ -14,6 +14,7 @@ volatile uint8_t uart_rx_buffer_not_empty_flag = 0;
 extern uint8_t user_feedback;
 extern volatile uint8_t led_blink_flag;
 extern volatile uint8_t LED_flag;
+extern volatile uint_fast16_t timeout_ms;
 
 /** GLOBAL VARIABLES END___________________________________________________________________________ */
 
@@ -47,10 +48,7 @@ void init_system_timer(){
 
 void init_ports(){
     P1DIR |= BIT0;
-    P2DIR |= BIT5;
     P1OUT &= ~(BIT0);
-    P2OUT &= ~(BIT5 + BIT4 + BIT3 + BIT2 + BIT1 + BIT0);
-    P2DIR &= ~BIT3;
 }
 /** INITIALIZATION FUNCTIONS END_________________________________________________________________ */
 
@@ -75,47 +73,31 @@ int main(void)
     init_clk();
     init_ports();
     init_system_timer();
-    uart_init();
 
+    uart_init();
     ibutton_init();
     ibutton_fsm_init();
     flash_init();
-	// \todo sys check.
+
 	uart_send_str("System Start", 1);
-	uint8_t sound_mode = 1;
-	make_sound(sound_mode, 1000);
+
+	make_sound(0, 1000);
     __enable_interrupt();
 	while(1){
 	    // todo implement button check (maybe interrupt)
-	    if( reader_polling_flag )
+	    if( reader_polling_flag && !ibutton_fsm.input_to_serve){
 	        ibutton_read();
+	    }
 
 	    if(ibutton_fsm.input_to_serve){
 	        ibutton_fsm_change_state();
 	    }
 
         if(led_blink_flag){
-            switch(user_feedback){
-                case 1:
-                    LED_BLINK_GR;
-                    break;
-                case 2:
-                    LED_BLINK_RE;
-                    break;
-                case 3:
-                    sound_mode = !sound_mode;
-                    make_sound(sound_mode, 120);
-                    LED_BLINK_GR;
-                    LED_BLINK_RE;
-                    break;
-                case 4:
-                    make_sound(0, 30);
-                default:
-                break;
-            }
+            ibutton_user_feedback_service();
             led_blink_flag = 0;
         }
-	    if(LED_flag){
+        if(LED_flag){
 	        P1OUT ^= BIT0;
 
 	        LED_flag = 0;

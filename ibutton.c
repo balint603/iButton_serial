@@ -50,6 +50,7 @@ static void write_command(){
  *  Initialization function.
  * */
 void ibutton_init(){
+    P2OUT &= ~(LED_PIN_GR + LED_PIN_RE + DATA_PIN);
     RELEASE;
 }
 
@@ -75,7 +76,7 @@ int ibutton_test_presence(){
     return pin_state_temp ? 0 : 1 ;
 }
 /**
- * Read the iButton ROM into the input buffer. todo test it 16 bit version
+ * Read the iButton ROM into the input buffer.
  * This function must be called, when an iButton has just been connected to the reader.
  * \param uint16_t *data must be a buffer, with size of 3 word.
  * \ret 0 when the computed crc equals the MSB from the ROM data and LSB equals 01h (iButton family code).
