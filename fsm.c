@@ -30,6 +30,7 @@
 
 
 /** State functions */
+static void shorted_reader(inputs_t input);
 static void access_allow_bistable(inputs_t input);
 static void access_allow(inputs_t input);
 static void access_denied(inputs_t input);
@@ -83,11 +84,13 @@ void ibutton_fsm_init(){
     PIEZO_PORT_DIR |= PIEZO_BIT;
     GPIO_SET_INPUT_PULL_UP_VCC(JUMPER_A_PORT,JUMPER_A_PIN);
     GPIO_SET_INPUT_PULL_UP_VCC(JUMPER_B_PORT,JUMPER_B_PIN);
+    GPIO_SET_INPUT_PULL_UP_VCC(JUMPER_M_PORT,JUMPER_M_PIN);
 
     GPIO_SET_INPUT_PULL_UP_VCC(PUSHBUTTON_PORT,PUSHBUTTON_PIN);
 
     P2OUT &= ~REL_BIT;  // relay
     REL_OFF;
+
     reader_polling_ms = READ_POLLING_TIME;
     reader_polling_flag = 1;
 
@@ -95,29 +98,30 @@ void ibutton_fsm_init(){
     ibutton_fsm.input_to_serve = 0;
     ibutton_fsm.current_state = check_touch;
 
-    if((*iButton_data.opening_time_ptr) == 0xFFFF)
-        if(flash_change_settings(FLASH_TIME, &basic_time, 1))
+    if((*iButton_data.opening_time_ptr) == 0xFFFF)                              // Opening time empty?
+        if(flash_change_settings(FLASH_TIME, &basic_time, 1)){
             uart_send_str("Change settings error!", 1);
+            make_sound(0, LONG);
+        }
     refresh_timing();
 
-    if(!compare_key(data_ff, (uint16_t*)iButton_data.master_key_code_ptr)){
+    if(!compare_key(data_ff, (uint16_t*)iButton_data.master_key_code_ptr)){     // Master code place empty?
         uart_send_str("First start.", 1);
 
-        // todo check memory is all FFFFh?
+        // todo memory check
 
         uart_send_str("Please touch a master key!", 1);
-
         user_feedback = ONLY_GREEN;
         ibutton_fsm.current_state = add_master_key;
-        // fast key adding mode
     }
-    else if(!(GET_INPUT)){ // todo Check multiple times!
-
+    else if( !(GET_INPUT) && GPIO_GET_INPUT(JUMPER_M_PORT,JUMPER_M_PIN) ){       // Check shorted and enabled
         user_feedback = ONLY_GREEN;
-        uart_send_str("Please touch a master key!", 1);
-        ibutton_fsm.current_state = add_master_key;
+        ibutton_fsm.current_state = shorted_reader;
+        TIMEOUT(1200);
+        make_sound(0, LONG);
     }
     LED_TURN_OFF_RE;
+    make_sound(0, SHORT);
 }
 
 void read_pushbutton(){
@@ -129,10 +133,11 @@ void read_pushbutton(){
 void ibutton_read(){
 
     if( curr_presence = ibutton_test_presence()){
-        if(!iButton_data.reader_enable_flag)
+        if(!iButton_data.reader_enable_flag){
             reader_disable_ms = READ_DISABLE_TIME;
+            read_pushbutton();
+        }
         else if(!ibutton_read_it(iButton_data.key_code)){
-
             if(compare_key((uint16_t*)iButton_data.master_key_code_ptr, iButton_data.key_code))
                 put_input(key_touched);
             else
@@ -235,6 +240,21 @@ void ibutton_user_feedback_service(){
 
 /* State functions start___________________________________________________________________________________ */
 
+static void shorted_reader(inputs_t input){
+    if(!timeout_ticking){
+        if(!GET_INPUT && GPIO_GET_INPUT(JUMPER_M_PORT,JUMPER_M_PIN)){                  // Still pulled down and enabled
+            ibutton_fsm.current_state = add_master_key;
+            user_feedback = ONLY_GREEN;
+            TIMEOUT(60000);
+        }
+        else{
+            ibutton_fsm.current_state = check_touch;
+            LED_TURN_ON_GR;
+            user_feedback= NONE;
+        }
+    }
+}
+
 static void access_allow_bistable(inputs_t input){
 /*
     uint16_t addr = 0;
@@ -283,6 +303,20 @@ static void access_denied(inputs_t input){
         LED_TURN_OFF_RE;
         ibutton_fsm.current_state = check_touch;
         break;
+    case button_pressed:
+        uart_send_str("RELAY=ON", 1);
+        REL_ON;
+        led_blink_ms = 2000;
+        make_sound(1, SHORT);
+        user_feedback = ONLY_NOISE;
+        LED_TURN_ON_GR;
+        LED_TURN_OFF_RE;
+        if(*iButton_data.mode_ptr){
+            ibutton_fsm.current_state = access_allow;
+            refresh_timing();
+            TIMEOUT(200);
+            break;
+        }
     }
     ibutton_fsm.input_to_serve = 0;
 }
@@ -436,6 +470,33 @@ static void check_touch(inputs_t input){
     timeout_ms = 0;
 
     switch (ibutton_fsm.input){
+    case master_key_touched:
+        if(GPIO_GET_INPUT(JUMPER_M_PORT,JUMPER_M_PIN)){         // Master enable jumper off
+            uart_send_str("Master mode#", 1);
+            make_sound(1, SHORT);
+            TIMEOUT(60000);
+            user_feedback = ONLY_GREEN;
+            LED_TURN_OFF_GR;
+            ibutton_fsm.current_state = master_mode;
+
+        }
+        else{
+            uart_send_str("RELAY=ON", 1);
+            REL_ON;
+            led_blink_ms = 2000;
+            make_sound(1, SHORT);
+            user_feedback = ONLY_NOISE;
+            if(*iButton_data.mode_ptr){
+                ibutton_fsm.current_state = access_allow;
+                refresh_timing();
+                TIMEOUT(200);
+            }
+            else{
+                ibutton_fsm.current_state = access_allow_bistable;
+            }
+            LED_TURN_OFF_GR;
+        }
+        break;
     case key_touched:
         if(flash_search_key(iButton_data.key_code, &addr)){
             uart_send_str("RELAY=ON", 1);
@@ -461,14 +522,6 @@ static void check_touch(inputs_t input){
             ibutton_fsm.current_state = access_denied;
         }
             break;
-    case master_key_touched:
-        uart_send_str("Master mode#", 1);
-        make_sound(1, SHORT);
-        TIMEOUT(60000);
-        user_feedback = ONLY_GREEN;
-        LED_TURN_OFF_GR;
-        ibutton_fsm.current_state = master_mode;
-        break;
     case button_pressed:
         if(*iButton_data.button_enable_ptr){
             uart_send_str("RELAY=ON", 1);
@@ -480,9 +533,6 @@ static void check_touch(inputs_t input){
                 ibutton_fsm.current_state = access_allow;
                 refresh_timing();
                 TIMEOUT(200);
-            }
-            else{
-                ibutton_fsm.current_state = access_allow_bistable;
             }
             LED_TURN_OFF_GR;
         }

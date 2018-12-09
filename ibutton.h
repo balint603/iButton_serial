@@ -14,14 +14,14 @@
 /*________________________________ START SETTINGS ________________________________ */
 #define n_cycle_to_us 12                // Processor counts to 1 microsecond
 
-#define DATA_PIN         BIT0
-#define DATA_PORT_INPUT  P2IN
-#define DATA_PORT_DIR    P2DIR
+#define DATA_PIN         BIT7
+#define DATA_PORT_INPUT  P1IN
+#define DATA_PORT_DIR    P1DIR
 
-#define LED_PIN_GR          BIT1
+#define LED_PIN_GR          BIT5
 #define LED_PORT_GR         P2DIR
-#define LED_PIN_RE          BIT2
-#define LED_PORT_RE         P2DIR
+#define LED_PIN_RE          BIT6
+#define LED_PORT_RE         P1DIR
 /*________________________________ END SETTINGS ________________________________ */
 
 

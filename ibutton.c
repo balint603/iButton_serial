@@ -50,7 +50,8 @@ static void write_command(){
  *  Initialization function.
  * */
 void ibutton_init(){
-    P2OUT &= ~(LED_PIN_GR + LED_PIN_RE + DATA_PIN);
+    P2OUT &= ~(LED_PIN_GR);
+    P1OUT &= ~(LED_PIN_RE + DATA_PIN);
     RELEASE;
 }
 

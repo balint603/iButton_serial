@@ -11,13 +11,15 @@
 
 #include <inttypes.h>
 
-#define JUMPER_A_PORT   2
-#define JUMPER_B_PORT   2
-#define JUMPER_A_PIN    BIT4
-#define JUMPER_B_PIN    BIT5
+#define JUMPER_A_PORT   1
+#define JUMPER_B_PORT   1
+#define JUMPER_M_PORT   1
+#define JUMPER_A_PIN    BIT5
+#define JUMPER_B_PIN    BIT4
+#define JUMPER_M_PIN    BIT3
 
-#define PUSHBUTTON_PORT 1
-#define PUSHBUTTON_PIN BIT7
+#define PUSHBUTTON_PORT 2
+#define PUSHBUTTON_PIN BIT4
 
 #define GPIO_DIR(port)  P ## port ## DIR
 #define GPIO_OUT(port)  P ## port ## OUT
@@ -28,7 +30,7 @@
 #define GPIO_GET_INPUT(port,pin)  (GPIO_IN(port) & (pin))
 
 #define REL_PORT_DIR    P2DIR
-#define REL_BIT         BIT3
+#define REL_BIT         BIT2
 #define REL_ON          (REL_PORT_DIR |= REL_BIT)
 #define REL_OFF         (REL_PORT_DIR &= ~REL_BIT)
 

@@ -81,7 +81,6 @@ int main(void)
 
 	uart_send_str("System Start", 1);
 
-	make_sound(0, 1000);
     __enable_interrupt();
 	while(1){
 	    // todo implement button check (maybe interrupt)
