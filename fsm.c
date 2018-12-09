@@ -82,6 +82,7 @@ void ibutton_fsm_init(){
     uint16_t basic_time = 30;
 
     PIEZO_PORT_DIR |= PIEZO_BIT;
+    P2SEL &= ~BIT7;
     GPIO_SET_INPUT_PULL_UP_VCC(JUMPER_A_PORT,JUMPER_A_PIN);
     GPIO_SET_INPUT_PULL_UP_VCC(JUMPER_B_PORT,JUMPER_B_PIN);
     GPIO_SET_INPUT_PULL_UP_VCC(JUMPER_M_PORT,JUMPER_M_PIN);
@@ -568,6 +569,7 @@ __interrupt void Timer0_A0_ISR(void){
         if(!piezo_on_time--){
              PIEZO_PORT_SEL &= ~PIEZO_BIT;
              PIEZO_PORT_DIR &= ~PIEZO_BIT;
+
              piezo_ticking = 0;
         }
     }

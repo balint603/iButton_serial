@@ -34,8 +34,8 @@
 #define REL_ON          (REL_PORT_DIR |= REL_BIT)
 #define REL_OFF         (REL_PORT_DIR &= ~REL_BIT)
 
-#define PIEZO_PORT_DIR  P1DIR
-#define PIEZO_PORT_SEL  P1SEL
+#define PIEZO_PORT_DIR  P2DIR
+#define PIEZO_PORT_SEL  P2SEL
 #define PIEZO_BIT       BIT6
 
 #define READ_DISABLE_TIME 600 /* ms/2 */

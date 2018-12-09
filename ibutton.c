@@ -97,8 +97,12 @@ int ibutton_read_it(uint16_t *data){
         RELEASE;
         wait_us(10);
         first_byte >>= 1;
-        if(databit = GET_INPUT)
+        if(GET_INPUT){
             first_byte |= 128;
+            databit = 1;
+        }
+        else
+            databit = 0;
         temp = (crc & 0x01) ^ databit;
         crc >>= 1;
         if(temp)
@@ -114,8 +118,12 @@ int ibutton_read_it(uint16_t *data){
             RELEASE;
             wait_us(10);
             *(data) >>= 1;
-            if(databit = GET_INPUT)
+            if(GET_INPUT){
                 *(data) |= 0x8000;
+                databit = 1;
+            }
+            else
+                databit = 0;
             temp = (crc & 0x01) ^ databit;
             crc >>= 1;
             if(temp)
