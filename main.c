@@ -11,8 +11,8 @@
 
 volatile uint8_t uart_rx_buffer_not_empty_flag = 0;
 
-extern uint8_t user_feedback;
-extern volatile uint8_t led_blink_flag;
+extern uint8_t user_info_mode;
+extern volatile uint8_t user_info_flag;
 extern volatile uint8_t LED_flag;
 extern volatile uint_fast16_t timeout_ms;
 
@@ -36,13 +36,13 @@ void init_system_timer(){
     /**
      * System Timer (1ms)
      * */
-    TACCR0 = 749;  // 1KHz
-    TACTL = MC_1 | ID_3 |TASSEL_2 | TACLR;
+    TACCR0 = 1499;  // 1KHz
+    TACTL = MC_1 | ID_2 |TASSEL_2 | TACLR;
     TACCTL0 |= CCIE;
     /**
      * Piezo SETTINGS
      * */
-    TACCR1 = 349;   // 2KHz
+    TACCR1 = 749;   // 2KHz
 
 }
 
@@ -83,18 +83,18 @@ int main(void)
 
     __enable_interrupt();
 	while(1){
-	    // todo implement button check (maybe interrupt)
-	    if( reader_polling_flag && !ibutton_fsm.input_to_serve){
-	        ibutton_read();
-	    }
 
 	    if(ibutton_fsm.input_to_serve){
 	        ibutton_fsm_change_state();
+	    }else{
+	        if(reader_polling_flag){
+                ibutton_read();
+            }
 	    }
 
-        if(led_blink_flag){
-            ibutton_user_feedback_service();
-            led_blink_flag = 0;
+        if(user_info_flag){
+            ibutton_user_info_mode_service();
+            user_info_flag = 0;
         }
         if(LED_flag){
 	        P1OUT ^= BIT0;

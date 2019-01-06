@@ -19,7 +19,7 @@
 #define JUMPER_M_PIN    BIT3
 
 #define PUSHBUTTON_PORT 2
-#define PUSHBUTTON_PIN BIT4
+#define PUSHBUTTON_PIN BIT3
 
 #define GPIO_DIR(port)  P ## port ## DIR
 #define GPIO_OUT(port)  P ## port ## OUT
@@ -30,7 +30,7 @@
 #define GPIO_GET_INPUT(port,pin)  (GPIO_IN(port) & (pin))
 
 #define REL_PORT_DIR    P2DIR
-#define REL_BIT         BIT2
+#define REL_BIT         BIT3
 #define REL_ON          (REL_PORT_DIR |= REL_BIT)
 #define REL_OFF         (REL_PORT_DIR &= ~REL_BIT)
 
@@ -77,7 +77,7 @@ void make_sound(uint8_t mode, uint16_t time);
 void put_input(inputs_t input);
 int compare_key(uint16_t *key1, uint16_t *key2);
 void refresh_timing();
-void ibutton_user_feedback_service();
+void ibutton_user_info_mode_service();
 void ibutton_timeout_service();
 
 ibutton_fsm_t ibutton_fsm;
@@ -86,7 +86,5 @@ volatile uint8_t reader_polling_flag;
 uint_fast16_t reader_disable_ms;
 
 /** Input to serve */
-
-extern uint8_t led_blink_enable;
 
 #endif /* FSM_H_ */

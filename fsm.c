@@ -17,14 +17,15 @@
 #include "ibutton.h"
 
 /** LED blink */
-#define NONE 0
-#define ONLY_GREEN 1
-#define ONLY_RED 2
-#define BOTH 3
-#define ONLY_NOISE 4
+#define INFO_NONE 0
+#define INFO_2_BEEPS 2
+#define INFO_3_BEEPS 3
+#define INFO_ONLY_GREEN 4
+#define INFO_ONLY_RED 5
+#define INFO_BOTH 6
 
-#define SHORT 256
-#define LONG 1200
+#define INFO_SHORT 200
+#define INFO_LONG 1200
 
 
 
@@ -47,7 +48,7 @@ iButton_key_data_t iButton_data = {
                                     .reader_enable_flag = 1,
 };
 
-
+void make_sound(uint8_t mode, uint16_t time);
 
 /** iButton reading. */
 uint8_t prev_presence = 0;
@@ -58,20 +59,22 @@ volatile uint8_t LED_flag;
 
 volatile uint_fast16_t timeout_ms;
 volatile uint8_t timeout_ticking;
-volatile uint_fast16_t led_blink_ms = 500;
-volatile uint8_t led_blink_flag;
-volatile uint8_t user_feedback;
+
+volatile uint_fast16_t user_info_ms;
+volatile uint8_t user_info_flag;
+volatile uint8_t user_info_mode;
 
 volatile uint16_t piezo_on_time;
 volatile uint8_t piezo_ticking;
 
-uint8_t sound_mode = 1;
 
 
 
 #define TIMEOUT(time) {timeout_ms = time; timeout_ticking = 1;}
-
-
+#define SEND_USER_INFO(mode,sound_mode,sound_length)\
+                        make_sound(sound_mode, sound_length);\
+                        user_info_mode = mode;\
+                        user_info_flag = 1;
 
 /**
  * Initialization.
@@ -102,7 +105,7 @@ void ibutton_fsm_init(){
     if((*iButton_data.opening_time_ptr) == 0xFFFF)                              // Opening time empty?
         if(flash_change_settings(FLASH_TIME, &basic_time, 1)){
             uart_send_str("Change settings error!", 1);
-            make_sound(0, LONG);
+            SEND_USER_INFO(INFO_3_BEEPS,0,INFO_SHORT);
         }
     refresh_timing();
 
@@ -112,17 +115,16 @@ void ibutton_fsm_init(){
         // todo memory check
 
         uart_send_str("Please touch a master key!", 1);
-        user_feedback = ONLY_GREEN;
+        SEND_USER_INFO(INFO_ONLY_GREEN,0,INFO_SHORT);
         ibutton_fsm.current_state = add_master_key;
     }
     else if( !(GET_INPUT) && GPIO_GET_INPUT(JUMPER_M_PORT,JUMPER_M_PIN) ){       // Check shorted and enabled
-        user_feedback = ONLY_GREEN;
+        SEND_USER_INFO(INFO_ONLY_GREEN,0,INFO_LONG);
         ibutton_fsm.current_state = shorted_reader;
         TIMEOUT(1200);
-        make_sound(0, LONG);
     }
     LED_TURN_OFF_RE;
-    make_sound(0, SHORT);
+    make_sound(0, INFO_SHORT);
 }
 
 void read_pushbutton(){
@@ -187,19 +189,6 @@ int copy_key(uint16_t *from, uint16_t *to){
         *(to++) = *(from++);
     return 0;
 }
-/**
- * \param mode: toggle or reset/set output mode.
- * */
-void make_sound(uint8_t mode, uint16_t time){
-    if(mode)
-        TA0CCTL1 = OUTMOD_4;
-    else
-        TA0CCTL1 = OUTMOD_7;
-    PIEZO_PORT_DIR |= PIEZO_BIT;
-    piezo_on_time = time;
-    piezo_ticking = 1;
-    PIEZO_PORT_SEL |= PIEZO_BIT; // start beep
-}
 
 void refresh_timing(){
     iButton_data.opening_time = 0;
@@ -217,26 +206,58 @@ void refresh_timing(){
     }
 }
 
-void ibutton_user_feedback_service(){
-    switch(user_feedback){
-        case 1:
+/**
+ * \param mode: toggle or reset/set output mode.
+ * */
+void make_sound(uint8_t mode, uint16_t time){
+    if(mode)
+        TA0CCTL1 = OUTMOD_4;
+    else
+        TA0CCTL1 = OUTMOD_7;
+    PIEZO_PORT_DIR |= PIEZO_BIT;
+    piezo_on_time = time;
+    //piezo_ticking = 1;
+    PIEZO_PORT_SEL |= PIEZO_BIT; // start beep
+}
+
+void ibutton_user_info_mode_service(){
+    switch(user_info_mode){
+        case INFO_ONLY_GREEN:
             LED_BLINK_GR;
+            user_info_ms = 999;
             break;
-        case 2:
+        case INFO_ONLY_RED:
             LED_BLINK_RE;
+            user_info_ms = 999;
+            break;
+        case INFO_BOTH:
+
+            make_sound(0, 120);
+            LED_BLINK_GR;
+            LED_BLINK_RE;
+            user_info_ms = 999;
             break;
         case 3:
-            sound_mode = !sound_mode;
-            make_sound(sound_mode, 120);
-            LED_BLINK_GR;
-            LED_BLINK_RE;
+            make_sound(0, INFO_SHORT);
+            user_info_mode--;
+            user_info_ms = 299;
             break;
-        case 4:
-            make_sound(0, 80);
+        case 2:
+            make_sound(0, INFO_SHORT);
+            user_info_mode--;
+            user_info_ms = 299;
+            break;
+        case 1:
+            make_sound(0, 349);
+            user_info_mode--;
+            break;
         default:
-        break;
+            user_info_mode = INFO_NONE;
+            break;
     }
 }
+
+
 
 
 /* State functions start___________________________________________________________________________________ */
@@ -245,13 +266,13 @@ static void shorted_reader(inputs_t input){
     if(!timeout_ticking){
         if(!GET_INPUT && GPIO_GET_INPUT(JUMPER_M_PORT,JUMPER_M_PIN)){                  // Still pulled down and enabled
             ibutton_fsm.current_state = add_master_key;
-            user_feedback = ONLY_GREEN;
+            user_info_mode = INFO_ONLY_GREEN;
             TIMEOUT(60000);
         }
         else{
             ibutton_fsm.current_state = check_touch;
             LED_TURN_ON_GR;
-            user_feedback= NONE;
+            user_info_mode = INFO_NONE;
         }
     }
 }
@@ -282,9 +303,9 @@ static void access_allow(inputs_t input){
     if(!timeout_ticking){
         if(!(--iButton_data.opening_time)){
             uart_send_str("RELAY=OFF", 1);
-            make_sound(0, 200);
+            SEND_USER_INFO(INFO_NONE,0,INFO_SHORT);
             LED_TURN_ON_GR;
-            user_feedback = NONE;
+
             REL_OFF;
             ibutton_fsm.current_state = check_touch;
             refresh_timing();
@@ -307,9 +328,7 @@ static void access_denied(inputs_t input){
     case button_pressed:
         uart_send_str("RELAY=ON", 1);
         REL_ON;
-        led_blink_ms = 2000;
-        make_sound(1, SHORT);
-        user_feedback = ONLY_NOISE;
+        make_sound(1, INFO_SHORT);
         LED_TURN_ON_GR;
         LED_TURN_OFF_RE;
         if(*iButton_data.mode_ptr){
@@ -327,21 +346,18 @@ static void fast_add_mode(inputs_t input){
     uint16_t *flash_ptr;
     switch (input) {
         case timeout:
-            user_feedback = 0;
-            led_blink_ms = 1000;
             LED_TURN_ON_GR;
             LED_TURN_OFF_RE;
-            make_sound(1, LONG);
+            SEND_USER_INFO(INFO_NONE,1,INFO_LONG);
             uart_send_str("Normal mode>", 1);
             ibutton_fsm.current_state = check_touch;
             break;
         case key_touched:
             TIMEOUT(60000);
-            // test EEPROM WP
             LED_TURN_ON_RE;
             if(flash_search_key(iButton_data.key_code, &address)){
                 uart_send_str("Already added!", 1);
-                make_sound(1, SHORT);
+                make_sound(0, INFO_SHORT);
             }
             else{
                 flash_write_data(iButton_data.key_code, 3, address);
@@ -349,19 +365,18 @@ static void fast_add_mode(inputs_t input){
             flash_ptr = (uint16_t*)address;
             if(compare_key(flash_ptr, iButton_data.key_code)){
                 uart_send_str("Flash write error!",1);
-                make_sound(0, LONG);
+                SEND_USER_INFO(INFO_3_BEEPS,0,INFO_SHORT);
             }
             else
-                make_sound(1, SHORT);
+                make_sound(0, INFO_SHORT);
             LED_TURN_OFF_RE;
             break;
         case master_key_touched:
-            user_feedback = 0;
-            led_blink_ms = 1000;
+            user_info_ms = 1000;
             LED_TURN_ON_GR;
             LED_TURN_OFF_RE;
             uart_send_str("Normal mode>", 1);
-            make_sound(1, SHORT);
+            SEND_USER_INFO(INFO_NONE,0,INFO_SHORT);
             ibutton_fsm.current_state = check_touch;
             break;
         default:
@@ -377,18 +392,19 @@ static void add_master_key(inputs_t input){
             uart_send_str("Change settings error!", 1);
         if(!compare_key(iButton_data.key_code, iButton_data.master_key_code_ptr)){
             uart_send_str("Fast add mode#", 1);
-            make_sound(1, SHORT);
+            make_sound(1, INFO_SHORT);
             TIMEOUT(60000);
             ibutton_fsm.current_state = fast_add_mode;
         }
         else{
             uart_send_str("ADD M_key error!", 1);
             ibutton_fsm.current_state = check_touch;
+            SEND_USER_INFO(INFO_3_BEEPS,0,INFO_SHORT);
         }
         break;
     case master_key_touched:
         uart_send_str("Fast add mode#",1);
-        make_sound(0, SHORT);
+        make_sound(0, INFO_SHORT);
         TIMEOUT(60000);
         ibutton_fsm.current_state = fast_add_mode;
         break;
@@ -399,10 +415,9 @@ static void add_master_key(inputs_t input){
 static void master_delete(inputs_t input){
     switch (input) {
         case timeout:
-            user_feedback = NONE;
             LED_TURN_OFF_RE;
             LED_TURN_ON_GR;
-            make_sound(1, LONG);
+            SEND_USER_INFO(INFO_NONE,1,INFO_LONG);
             ibutton_fsm.current_state = check_touch;
             break;
         case master_key_touched:
@@ -415,10 +430,9 @@ static void master_delete(inputs_t input){
             flash_init();
             LED_TURN_OFF_RE;
             LED_TURN_ON_GR;
-            user_feedback = ONLY_GREEN;
+            SEND_USER_INFO(INFO_ONLY_GREEN,0,INFO_SHORT);
             uart_send_str("Please touch a master key!", 1);
             ibutton_fsm.current_state = add_master_key;
-            make_sound(1, 1);
         default:
             break;
     }
@@ -430,17 +444,16 @@ static void master_mode(inputs_t input){
     switch(input){
     case timeout:
         uart_send_str("Normal mode>", 1);
-        user_feedback = 0;
         LED_TURN_ON_GR;
-        make_sound(1, LONG);
-        led_blink_ms = 1000;
+        SEND_USER_INFO(INFO_NONE,1,INFO_LONG);
+        user_info_ms = 1000;
         ibutton_fsm.current_state = check_touch;
         break;
     case master_key_touched:
         uart_send_str("Erase key code data?", 1);
         LED_TURN_OFF_RE;
         LED_TURN_ON_GR;
-        user_feedback = BOTH;
+        SEND_USER_INFO(INFO_BOTH,0,INFO_SHORT);
         TIMEOUT(6000);
         ibutton_fsm.current_state = master_delete;
         break;
@@ -448,14 +461,13 @@ static void master_mode(inputs_t input){
         if(flash_search_key(iButton_data.key_code, &address)){
             flash_delete_key(address);
             uart_send_str("Key has been deleted.", 1);
+            SEND_USER_INFO(INFO_2_BEEPS,0,INFO_SHORT);
         }
         else{
             flash_write_data(iButton_data.key_code, 3, address);
             uart_send_str("Key has been added.", 1);
+            SEND_USER_INFO(INFO_NONE,0,INFO_SHORT);
         }
-        user_feedback = NONE;
-        make_sound(1, SHORT);
-        led_blink_ms = 1000;
         LED_TURN_ON_GR;
         LED_TURN_OFF_RE;
         ibutton_fsm.current_state = check_touch;
@@ -474,19 +486,17 @@ static void check_touch(inputs_t input){
     case master_key_touched:
         if(GPIO_GET_INPUT(JUMPER_M_PORT,JUMPER_M_PIN)){         // Master enable jumper off
             uart_send_str("Master mode#", 1);
-            make_sound(1, SHORT);
             TIMEOUT(60000);
-            user_feedback = ONLY_GREEN;
+            SEND_USER_INFO(INFO_ONLY_GREEN,0,INFO_SHORT);
             LED_TURN_OFF_GR;
             ibutton_fsm.current_state = master_mode;
-
         }
         else{
             uart_send_str("RELAY=ON", 1);
             REL_ON;
-            led_blink_ms = 2000;
-            make_sound(1, SHORT);
-            user_feedback = ONLY_NOISE;
+
+            make_sound(1, INFO_SHORT);
+            // todo periodic beeps
             if(*iButton_data.mode_ptr){
                 ibutton_fsm.current_state = access_allow;
                 refresh_timing();
@@ -502,9 +512,7 @@ static void check_touch(inputs_t input){
         if(flash_search_key(iButton_data.key_code, &addr)){
             uart_send_str("RELAY=ON", 1);
             REL_ON;
-            led_blink_ms = 2000;
-            make_sound(1, SHORT);
-            user_feedback = ONLY_NOISE;
+            make_sound(1, INFO_SHORT);
             if(*iButton_data.mode_ptr){
                 ibutton_fsm.current_state = access_allow;
                 refresh_timing();
@@ -527,9 +535,7 @@ static void check_touch(inputs_t input){
         if(*iButton_data.button_enable_ptr){
             uart_send_str("RELAY=ON", 1);
             REL_ON;
-            led_blink_ms = 2000;
-            make_sound(1, SHORT);
-            user_feedback = ONLY_NOISE;
+            make_sound(1, INFO_SHORT);
             if(*iButton_data.mode_ptr){
                 ibutton_fsm.current_state = access_allow;
                 refresh_timing();
@@ -552,10 +558,9 @@ static void check_touch(inputs_t input){
  * */
 #pragma vector=TIMER0_A0_VECTOR
 __interrupt void Timer0_A0_ISR(void){
-
     if(!(--LED_ms)){    // DEBUG LED
         LED_flag = 1;
-        LED_ms = 125;
+        LED_ms = 1000;
     }
     if(timeout_ticking){
         if(!timeout_ms--){
@@ -564,32 +569,15 @@ __interrupt void Timer0_A0_ISR(void){
             timeout_ticking = 0;
         }
     }
-
-    if(piezo_ticking){
-        if(!piezo_on_time--){
-             PIEZO_PORT_SEL &= ~PIEZO_BIT;
-             PIEZO_PORT_DIR &= ~PIEZO_BIT;
-
-             piezo_ticking = 0;
+    if(!piezo_on_time--){
+         PIEZO_PORT_SEL &= ~PIEZO_BIT;
+         PIEZO_PORT_DIR &= ~PIEZO_BIT;
+    }
+    if(user_info_mode){
+        if(!user_info_ms--){
+            user_info_flag = 1;
         }
     }
-    switch(user_feedback){
-    case NONE:
-        break;
-    case ONLY_NOISE:
-        if(!(--led_blink_ms)){
-            led_blink_flag = 1;
-            led_blink_ms = 2000;
-        }
-        break;
-    default:
-        if(!(--led_blink_ms)){
-            led_blink_flag = 1;
-            led_blink_ms = 1000;
-        }
-        break;
-    }
-
     if( !( --reader_polling_ms )){
         reader_polling_flag = 1;
         reader_polling_ms = READ_POLLING_TIME;
