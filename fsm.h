@@ -30,7 +30,7 @@
 #define GPIO_GET_INPUT(port,pin)  (GPIO_IN(port) & (pin))
 
 #define REL_PORT_DIR    P2DIR
-#define REL_BIT         BIT3
+#define REL_BIT         BIT4
 #define REL_ON          (REL_PORT_DIR |= REL_BIT)
 #define REL_OFF         (REL_PORT_DIR &= ~REL_BIT)
 

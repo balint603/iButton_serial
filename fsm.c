@@ -25,7 +25,7 @@
 #define INFO_BOTH 6
 
 #define INFO_SHORT 200
-#define INFO_LONG 1200
+#define INFO_LONG 1600
 
 
 
@@ -66,8 +66,6 @@ volatile uint8_t user_info_mode;
 
 volatile uint16_t piezo_on_time;
 volatile uint8_t piezo_ticking;
-
-
 
 
 #define TIMEOUT(time) {timeout_ms = time; timeout_ticking = 1;}
@@ -121,10 +119,10 @@ void ibutton_fsm_init(){
     else if( !(GET_INPUT) && GPIO_GET_INPUT(JUMPER_M_PORT,JUMPER_M_PIN) ){       // Check shorted and enabled
         SEND_USER_INFO(INFO_ONLY_GREEN,0,INFO_LONG);
         ibutton_fsm.current_state = shorted_reader;
-        TIMEOUT(1200);
-    }
+        TIMEOUT(INFO_LONG);
+    }else
+        make_sound(0, INFO_SHORT);
     LED_TURN_OFF_RE;
-    make_sound(0, INFO_SHORT);
 }
 
 void read_pushbutton(){
@@ -216,7 +214,6 @@ void make_sound(uint8_t mode, uint16_t time){
         TA0CCTL1 = OUTMOD_7;
     PIEZO_PORT_DIR |= PIEZO_BIT;
     piezo_on_time = time;
-    //piezo_ticking = 1;
     PIEZO_PORT_SEL |= PIEZO_BIT; // start beep
 }
 
@@ -231,7 +228,6 @@ void ibutton_user_info_mode_service(){
             user_info_ms = 999;
             break;
         case INFO_BOTH:
-
             make_sound(0, 120);
             LED_BLINK_GR;
             LED_BLINK_RE;
@@ -532,20 +528,16 @@ static void check_touch(inputs_t input){
         }
             break;
     case button_pressed:
-        if(*iButton_data.button_enable_ptr){
-            uart_send_str("RELAY=ON", 1);
-            REL_ON;
-            make_sound(1, INFO_SHORT);
-            if(*iButton_data.mode_ptr){
-                ibutton_fsm.current_state = access_allow;
-                refresh_timing();
-                TIMEOUT(200);
-            }
-            LED_TURN_OFF_GR;
+        uart_send_str("RELAY=ON", 1);
+        REL_ON;
+        make_sound(1, INFO_SHORT);
+        LED_TURN_OFF_RE;
+        if(*iButton_data.mode_ptr){
+            ibutton_fsm.current_state = access_allow;
+            refresh_timing();
+            TIMEOUT(200);
         }
-        else
-            uart_send_str("Button disabled.", 1);
-
+        LED_TURN_OFF_GR;
         break;
     }
 }
