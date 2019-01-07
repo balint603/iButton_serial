@@ -16,7 +16,7 @@
 #include "flash.h"
 #include "ibutton.h"
 
-/** LED blink */
+/** LED blinks */
 #define INFO_NONE 0
 #define INFO_2_BEEPS 2
 #define INFO_3_BEEPS 3
@@ -33,6 +33,7 @@
 /** State functions */
 static void shorted_reader(inputs_t input);
 static void access_allow_bistable(inputs_t input);
+static void access_allow_bistable_same_key(inputs_t input);
 static void access_allow(inputs_t input);
 static void access_denied(inputs_t input);
 static void fast_add_mode(inputs_t input);
@@ -274,23 +275,43 @@ static void shorted_reader(inputs_t input){
 }
 
 static void access_allow_bistable(inputs_t input){
-/*
-    uint16_t addr = 0;
-    uint16_t addr_ff = 0;
+
+    uint16_t addr = SEGMENT_0;
 
     REL_ON;
-     LED_TURN_OFF_GR;
-     switch (input){
-     case key_touched:
-         if(EEPROM_get_key_or_empty_place(iButton_data.key_code, &addr, &addr_ff, EEPROM_LAST_KEY_SPACE, 0) == 1){
-             uart_send_str("RELAY=OFF", 1);
-             LED_TURN_ON_GR;
-             REL_OFF;
-             ibutton_fsm.current_state = check_touch;
-         }
-         break;
-     }
-     ibutton_fsm.input_to_serve = 0;*/
+    LED_TURN_OFF_GR;
+    switch (input){
+    case key_touched:
+        if((flash_search_key(iButton_data.key_code, &addr))){
+            uart_send_str("RELAY=OFF", 1);
+            LED_TURN_ON_GR;
+            make_sound(1,INFO_SHORT);
+            REL_OFF;
+            ibutton_fsm.current_state = check_touch;
+        }
+        break;
+    }
+    ibutton_fsm.input_to_serve = 0;
+}
+
+static void access_allow_bistable_same_key(inputs_t input){
+
+    uint16_t addr = SEGMENT_0;
+
+    REL_ON;
+    LED_TURN_OFF_GR;
+    switch (input){
+    case key_touched:
+        if(!compare_key(iButton_data.prev_key_code, iButton_data.key_code)){
+            uart_send_str("RELAY=OFF", 1);
+            LED_TURN_ON_GR;
+            make_sound(1,INFO_SHORT);
+            REL_OFF;
+            ibutton_fsm.current_state = check_touch;
+        }
+        break;
+    }
+    ibutton_fsm.input_to_serve = 0;
 }
 
 static void access_allow(inputs_t input){
@@ -490,16 +511,21 @@ static void check_touch(inputs_t input){
         else{
             uart_send_str("RELAY=ON", 1);
             REL_ON;
-
             make_sound(1, INFO_SHORT);
             // todo periodic beeps
-            if(*iButton_data.mode_ptr){
-                ibutton_fsm.current_state = access_allow;
-                refresh_timing();
-                TIMEOUT(200);
-            }
-            else{
-                ibutton_fsm.current_state = access_allow_bistable;
+            switch (*iButton_data.mode_ptr) {           // Bistable modes or normal mode
+                case MODE_BISTABLE_SAME_K:
+                    copy_key(iButton_data.key_code, iButton_data.prev_key_code);
+                    ibutton_fsm.current_state = access_allow_bistable_same_key;
+                    break;
+                case MODE_BISTABLE:
+                    ibutton_fsm.current_state = access_allow_bistable;
+                    break;
+                default:
+                    ibutton_fsm.current_state = access_allow;
+                    refresh_timing();
+                    TIMEOUT(200);
+                    break;
             }
             LED_TURN_OFF_GR;
         }
@@ -509,13 +535,19 @@ static void check_touch(inputs_t input){
             uart_send_str("RELAY=ON", 1);
             REL_ON;
             make_sound(1, INFO_SHORT);
-            if(*iButton_data.mode_ptr){
-                ibutton_fsm.current_state = access_allow;
-                refresh_timing();
-                TIMEOUT(200);
-            }
-            else{
-                ibutton_fsm.current_state = access_allow_bistable;
+            switch (*iButton_data.mode_ptr) {                   // Bistable modes or normal mode
+                case MODE_BISTABLE_SAME_K:
+                    copy_key(iButton_data.key_code, iButton_data.prev_key_code);
+                    ibutton_fsm.current_state = access_allow_bistable_same_key;
+                    break;
+                case MODE_BISTABLE:
+                    ibutton_fsm.current_state = access_allow_bistable;
+                    break;
+                default:
+                    ibutton_fsm.current_state = access_allow;
+                    refresh_timing();
+                    TIMEOUT(200);
+                    break;
             }
             LED_TURN_OFF_GR;
         }
@@ -528,16 +560,16 @@ static void check_touch(inputs_t input){
         }
             break;
     case button_pressed:
-        uart_send_str("RELAY=ON", 1);
-        REL_ON;
-        make_sound(1, INFO_SHORT);
-        LED_TURN_OFF_RE;
-        if(*iButton_data.mode_ptr){
+        if(*iButton_data.mode_ptr == MODE_NORMAL){
+            uart_send_str("RELAY=ON", 1);
+            REL_ON;
+            make_sound(1, INFO_SHORT);
+            LED_TURN_OFF_RE;
             ibutton_fsm.current_state = access_allow;
             refresh_timing();
             TIMEOUT(200);
+            LED_TURN_OFF_GR;
         }
-        LED_TURN_OFF_GR;
         break;
     }
 }

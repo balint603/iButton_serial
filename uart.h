@@ -11,8 +11,8 @@
 
 /*________________________________ START SETTINGS ________________________________ */
 #define UART_BAUD_RATE 9600
-#define UART_CLK 12                                                      // SMCLK in MHz
-#define BAUD_SETTING_VALUE (UART_CLK*1000000 / UART_BAUD_RATE)
+#define UART_CLK 1500000                                                      // SMCLK (Hz)
+#define BAUD_SETTING_VALUE (UART_CLK / UART_BAUD_RATE)
 
 #define TX_SIZE 100
 #define RX_SIZE 64

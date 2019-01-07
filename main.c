@@ -27,7 +27,7 @@ void init_clk(){
     BCSCTL1 |= DIVA_0;
     BCSCTL2 = SELM_0 +
               DIVM_0 +
-              DIVS_0;
+              DIVS_3;
     BCSCTL2 &= ~SELS;
 }
 
@@ -36,13 +36,13 @@ void init_system_timer(){
     /**
      * System Timer (1ms)
      * */
-    TACCR0 = 1499;  // 1KHz
-    TACTL = MC_1 | ID_2 |TASSEL_2 | TACLR;
+    TACCR0 = 749;  // 1KHz
+    TACTL = MC_1 | ID_0 |TASSEL_2 | TACLR;
     TACCTL0 |= CCIE;
     /**
      * Piezo SETTINGS
      * */
-    TACCR1 = 749;   // 2KHz
+    TACCR1 = 325;   // 2KHz
 
 }
 
@@ -60,8 +60,7 @@ void init_ports(){
  * */
 int main(void)
 {
-    WDTCTL = WDTPW | WDTHOLD;   // stop watchdog timer
-
+    WATCHDOG_STOP;   // stop watchdog timer
     init_clk();
     init_ports();
     init_system_timer();
@@ -72,7 +71,7 @@ int main(void)
     flash_init();
 
 	uart_send_str("System Start", 1);
-
+	WATCHDOG_RESET;
     __enable_interrupt();
 	while(1){
 
@@ -93,6 +92,7 @@ int main(void)
 
 	        LED_flag = 0;
         }
+        WATCHDOG_RESET;   // stop watchdog timer
 	}
 	return 0;
 }

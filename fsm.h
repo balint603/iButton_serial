@@ -10,7 +10,7 @@
 #define FSM_H_
 
 #include <inttypes.h>
-
+/** PORT SETTINGS START______________________________________________________________________ */
 #define JUMPER_A_PORT   1
 #define JUMPER_B_PORT   1
 #define JUMPER_M_PORT   1
@@ -38,9 +38,16 @@
 #define PIEZO_PORT_SEL  P2SEL
 #define PIEZO_BIT       BIT6
 
+/** PORT SETTINGS START______________________________________________________________________ */
+
+
 #define READ_DISABLE_TIME 600 /* ms/2 */
 #define READ_POLLING_TIME 10 /* ms/2 */
 #define OPENING_TIME_BASIC 150 /* *100ms */
+
+#define MODE_NORMAL 0xFFFF
+#define MODE_BISTABLE 0xAAAA
+#define MODE_BISTABLE_SAME_K 0x5555
 
 typedef enum inputs {
     key_touched,
@@ -59,6 +66,12 @@ typedef struct fsm{
     uint8_t input_to_serve;
 } ibutton_fsm_t;
 
+
+
+/**
+ *
+ * \var mode_ptr: If this equals to 0xFFFF normal mode is active, 0xAAAA - Bistable, 0x5555 - Bistable same key.
+ * */
 typedef struct iButton_key_data{
     uint16_t const *master_key_code_ptr;
     uint16_t const *opening_time_ptr;
@@ -66,6 +79,7 @@ typedef struct iButton_key_data{
     uint16_t const *button_enable_ptr;
     volatile uint16_t opening_time;
     uint16_t key_code[3];
+    uint16_t prev_key_code[3];
     const uint16_t super_master_key_code[3];
     volatile uint8_t reader_enable_flag;
 } iButton_key_data_t;

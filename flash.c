@@ -10,7 +10,7 @@
 #include "flash.h"
 
 #define WRITE_BLOCK_PROCESS(data, size, address_ptr) \
-    FCTL2 = FWKEY + FSSEL_2 + FN5; \
+    FCTL2 = FWKEY + FSSEL_2 + FN2; \
     FCTL3 = FWKEY; \
     FCTL1 = FWKEY + BLKWRT + WRT; \
     block_addressing_RAM(data, size, address_ptr); \
@@ -80,13 +80,13 @@ int flash_init(){
  * */
 
 int flash_write_word(uint16_t word, uint16_t address){
-    // todo watchdog disable
+    WATCHDOG_STOP;
     while(FCTL3 & BUSY)
         ;
 
     uint16_t *p_data = (uint16_t*)address;
 
-    FCTL2 = FWKEY + FSSEL_2 + FN5;                  // 375KHz
+    FCTL2 = FWKEY + FSSEL_2 + FN2;                  // 375KHz
     FCTL3 = FWKEY;
     FCTL1 = FWKEY + WRT;
 
@@ -94,6 +94,7 @@ int flash_write_word(uint16_t word, uint16_t address){
 
     FCTL1 = FWKEY;
     FCTL3 = FWKEY + LOCK;
+    WATCHDOG_CONTINUE;
     return 0;
 }
 
@@ -104,7 +105,7 @@ int flash_write_word(uint16_t word, uint16_t address){
  * \ret 1 If data is NULL.
  * */
 int flash_write_data(uint16_t *data, uint8_t size, uint16_t address){
-    // todo watchdog disable
+
     uint16_t *address_tmp = (uint16_t*)address;
     uint8_t size_tmp = 1;
 
@@ -116,6 +117,7 @@ int flash_write_data(uint16_t *data, uint8_t size, uint16_t address){
         || ((uint16_t)address_tmp >= 0x1000 && (uint16_t)address_tmp + size <= 0x1012) ) )
         return -1;
     address_tmp = (uint16_t*)address;
+    WATCHDOG_STOP;
     while(FCTL3 & BUSY)
         ;
     while( (size_tmp < size) && ( (uint16_t)(++address_tmp) & 0b0000000000111111)){  // Flash border search
@@ -131,7 +133,7 @@ int flash_write_data(uint16_t *data, uint8_t size, uint16_t address){
     else
         size_tmp = size;
     }while(size);
-
+    WATCHDOG_CONTINUE;
     return 0;
 }
 
@@ -146,7 +148,6 @@ int flash_search_key(uint16_t *key, uint16_t *address){
     uint16_t *cur_ptr;
 
     *address = 0;
-
     while(flash_ptr <= (uint16_t*)SEGMENT_8){
         cur_ptr = flash_ptr;
         if( *(cur_ptr++) == 0xC0DE ){
@@ -296,7 +297,6 @@ int flash_change_settings(uint8_t change_from, uint16_t *data, uint8_t words_to_
 void segment_erase(uint16_t segment_addr){
     uint16_t *flash_ptr;
     uint8_t i;
-    // todo disable watchdog
     if(segment_addr >= SEGMENT_0 && segment_addr <= SEGMENT_8
     || segment_addr == SETTINGS_START){     // Single segment erase
         i = 1;
@@ -309,14 +309,16 @@ void segment_erase(uint16_t segment_addr){
     else{
         i = 0;
     }
+    WATCHDOG_STOP;
     for(i; i > 0; i--){
-        FCTL2 = FWKEY + FSSEL_2 + FN5;                  // 375KHz
+        FCTL2 = FWKEY + FSSEL_2 + FN2;                  // 375KHz
         FCTL3 = FWKEY;
         FCTL1 = FWKEY + ERASE;
         *flash_ptr = 0x0000;    // Dummy write
         FCTL3 = FWKEY + LOCK;
         flash_ptr += 256;
     }
+    WATCHDOG_CONTINUE;
 }
 
 

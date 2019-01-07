@@ -20,6 +20,10 @@
 #define FLASH_ENABLE_BUTTON   (5)   // Words
 #define SETTINGS_RANGE 6 // Words
 
+#define WATCHDOG_CONTINUE (WDTCTL = WDTPW)           // counting
+#define WATCHDOG_STOP (WDTCTL = WDTPW | WDTHOLD)      // stop watchdog timer
+#define WATCHDOG_RESET (WDTCTL = WDTPW | WDTCNTCL)
+
 #define FLASH_TIME_ADDR 0x1006
 #define FLASH_MODE_ADDR 0x1008
 #define FLASH_ENABLE_BUTTON_ADDR 0x100A
