@@ -56,7 +56,7 @@ void init_ports(){
  * Initialization.
  * Get the key code if iButton has touched to the reader.
  * Generating input for the state machine by checking the presence of an iButton key.
- * After a key had been successfully read by the reader, key-reading is disabled. Reading will be enabled defined seconds after the key is not present.
+ * After a key had been successfully read by the reader, key-reading is disabled. Reading will be enabled defined miliseconds after.
  * */
 int main(void)
 {

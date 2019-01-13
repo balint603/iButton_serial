@@ -289,15 +289,16 @@ static void access_allow_bistable(inputs_t input){
             REL_OFF;
             ibutton_fsm.current_state = check_touch;
         }
+        else{
+            uart_send_str("Wrong key!",1);
+            SEND_USER_INFO(INFO_3_BEEPS,0,INFO_SHORT);
+        }
         break;
     }
     ibutton_fsm.input_to_serve = 0;
 }
 
 static void access_allow_bistable_same_key(inputs_t input){
-
-    uint16_t addr = SEGMENT_0;
-
     REL_ON;
     LED_TURN_OFF_GR;
     switch (input){
@@ -308,6 +309,10 @@ static void access_allow_bistable_same_key(inputs_t input){
             make_sound(1,INFO_SHORT);
             REL_OFF;
             ibutton_fsm.current_state = check_touch;
+        }
+        else{
+            uart_send_str("Wrong key!",1);
+            SEND_USER_INFO(INFO_3_BEEPS,0,INFO_SHORT);
         }
         break;
     }
@@ -405,8 +410,10 @@ static void fast_add_mode(inputs_t input){
 static void add_master_key(inputs_t input){
     switch(input){
     case key_touched:
-        if(flash_change_settings(FLASH_MASTER_CODE, iButton_data.key_code, 3))
+        if(flash_change_settings(FLASH_MASTER_CODE, iButton_data.key_code, 3)){
+            SEND_USER_INFO(INFO_3_BEEPS,0,INFO_SHORT);
             uart_send_str("Change settings error!", 1);
+        }
         if(!compare_key(iButton_data.key_code, iButton_data.master_key_code_ptr)){
             uart_send_str("Fast add mode#", 1);
             make_sound(1, INFO_SHORT);
@@ -481,9 +488,14 @@ static void master_mode(inputs_t input){
             SEND_USER_INFO(INFO_2_BEEPS,0,INFO_SHORT);
         }
         else{
-            flash_write_data(iButton_data.key_code, 3, address);
-            uart_send_str("Key has been added.", 1);
-            SEND_USER_INFO(INFO_NONE,0,INFO_SHORT);
+            if(!flash_write_data(iButton_data.key_code, 3, address)){
+                uart_send_str("Key has been added.", 1);
+                SEND_USER_INFO(INFO_NONE,0,INFO_SHORT);
+            }
+            else{
+                uart_send_str("Key-code save failed!", 1);
+                SEND_USER_INFO(INFO_3_BEEPS,0,INFO_SHORT);
+            }
         }
         LED_TURN_ON_GR;
         LED_TURN_OFF_RE;
@@ -555,7 +567,7 @@ static void check_touch(inputs_t input){
             uart_send_str("ACCESS DENIED!",1);
             LED_TURN_OFF_GR;
             LED_TURN_ON_RE;
-            make_sound(0, 2000);
+            SEND_USER_INFO(INFO_3_BEEPS,0,INFO_SHORT);
             ibutton_fsm.current_state = access_denied;
         }
             break;
