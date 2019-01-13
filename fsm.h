@@ -88,7 +88,7 @@ void ibutton_fsm_init();
 void ibutton_fsm_change_state();
 void ibutton_read();
 void make_sound(uint8_t mode, uint16_t time);
-void put_input(inputs_t input);
+void ibutton_fsm_put_input(inputs_t input);
 int compare_key(uint16_t *key1, uint16_t *key2);
 void refresh_timing();
 void ibutton_user_info_mode_service();

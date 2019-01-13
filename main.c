@@ -70,7 +70,7 @@ int main(void)
     ibutton_fsm_init();
     flash_init();
 
-	uart_send_str("System Start", 1);
+	//uart_send_str("System Start", 1);
 	WATCHDOG_RESET;
     __enable_interrupt();
 	while(1){
@@ -82,6 +82,9 @@ int main(void)
                 ibutton_read();
             }
 	    }
+
+	    if(RX_is_packet)
+	        uart_process_command();
 
         if(user_info_flag){
             ibutton_user_info_mode_service();
