@@ -20,10 +20,9 @@
 
 void uart_init();
 void uart_process_command();
-
+int uart_send(uint8_t *data, uint8_t cmd, uint8_t data_size);
 
 volatile extern uint8_t RX_is_packet;
-volatile extern uint8_t TX_is_packet;
 
 
 #endif /* UART_H_ */

@@ -331,7 +331,9 @@ static void access_allow(inputs_t input){
            // uart_send_str("RELAY=OFF", 1);
             SEND_USER_INFO(INFO_NONE,0,INFO_SHORT);
             LED_TURN_ON_GR;
+            // test uart
 
+            uart_send((uint8_t*)iButton_data.key_code, 1, 6);
             REL_OFF;
             ibutton_fsm.current_state = check_touch;
             refresh_timing();
