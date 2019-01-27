@@ -269,13 +269,13 @@ int flash_change_settings(uint8_t change_from, uint16_t *data, uint8_t words_to_
 
     uint16_t data_tmp[SETTINGS_RANGE];
     uint16_t *flash_ptr = (uint16_t*)SETTINGS_START;
-    uint8_t i;
+    uint8_t i, k = 0;
 
     if(words_to_change > SETTINGS_RANGE || data == 0)
         return 1;
     for(i = 0; i < SETTINGS_RANGE; i++){                // Save current data
         if(i >= change_from && i < change_from + words_to_change){
-            data_tmp[i] = *(data++);
+            data_tmp[i] = *(data+(k++));
             flash_ptr++;
         }
         else
@@ -284,8 +284,9 @@ int flash_change_settings(uint8_t change_from, uint16_t *data, uint8_t words_to_
     segment_erase(SETTINGS_START);
     flash_write_data(data_tmp, SETTINGS_RANGE, SETTINGS_START);
 
-    for(i = 6; i > 0; i--)
-        if(*(data_tmp+i) != *(--flash_ptr))
+    flash_ptr = (uint16_t*)(change_from + SETTINGS_START);
+    while(words_to_change--)
+        if(*(data++) != *(flash_ptr++))
             return 1;
     return 0;
 }

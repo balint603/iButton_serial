@@ -14,22 +14,18 @@
 #include "uart.h"
 #include "fsm.h"
 
-
-/** UART command types */
-#define CMD_ECHO 1
-
 /** UART RX buffer type */
 typedef struct Packet {
     uint8_t cmd_b;
     uint8_t data_size;
-    uint8_t data[RX_TX_DATA_SIZE];
+    uint8_t data[RX_DATA_SIZE];
     uint16_t crc;
 } Packet_t;
 
 /** UART states */
 typedef enum UART_state{GET_START,GET_CMD,GET_SIZE,GET_DATA,GET_CRC_1,GET_CRC_0} state_t;
 
-state_t RX_state = GET_START;
+volatile state_t RX_state = GET_START;
 
 volatile uint8_t TX_is_packet;
 
@@ -37,7 +33,7 @@ volatile uint8_t TX_is_packet;
 uint8_t RX_data_cnt;
 
 uint8_t TX_buffer_cnt;
-uint8_t TX_buffer_ptr;
+uint8_t *TX_buffer_ptr;
 
 
 Packet_t RX_packet;
@@ -46,6 +42,8 @@ uint8_t TX_buffer[56];
 
 static uint16_t crc_do(uint8_t *data, int length);
 int uart_send(uint8_t *data, uint8_t cmd, uint8_t data_size);
+
+#define UART_RESET_TIMEOUT() {uart_timeout_ticking = 1; uart_timeot_ms = UART_TIMEOUT_MS;}
 
 /**
  * UART initialization need to be called at initialization.
@@ -74,7 +72,7 @@ void uart_init(){
 void uart_process_command(){
     switch (RX_packet.cmd_b) {
         case CMD_ECHO:
-            if(!uart_send(RX_packet.data, 0, RX_packet.data_size));
+            if(!uart_send(RX_packet.data, RX_packet.cmd_b, RX_packet.data_size));
                 RX_is_packet = 0;
             break;
         default:
@@ -99,16 +97,16 @@ int uart_send(uint8_t *data, uint8_t cmd, uint8_t data_size){
         return 1;
     if(!data)
         return 1;
-    if(data_size > 51)
+    if(data_size > RX_DATA_SIZE)
         return 1;
 
-    TX_buffer_ptr = 0;
+    TX_buffer_ptr = TX_buffer;
     TX_buffer[i++] = 0x55;
     TX_buffer[i++] = cmd;
-    TX_buffer[i++] = data_size + 2;
+    TX_buffer[i++] = data_size;
 
     while(data_size--)
-        TX_buffer[i++] = *(data++);
+        TX_buffer[i++] = *(data++); // todo check this
 
     crc_value = crc_do(TX_buffer, i);
     crc_value_msb = crc_value;
@@ -121,6 +119,13 @@ int uart_send(uint8_t *data, uint8_t cmd, uint8_t data_size){
     __enable_interrupt();
     return 0;
 }
+
+void uart_timeout(){
+    uint8_t data = 69;
+    RX_state = GET_START;
+    uart_send(&data, CMD_INFO, 1);
+}
+
 /**
  * need to test
  * */
@@ -139,7 +144,7 @@ static uint16_t crc_do(uint8_t *data, int length){
 #pragma vector=USCIAB0TX_VECTOR
 __interrupt void UART_TX_ISR(void){
     if(TX_buffer_cnt--){
-        UCA0TXBUF = TX_buffer[TX_buffer_ptr++];
+        UCA0TXBUF = *(TX_buffer_ptr++);
     }else{
         TX_is_packet = 0;
         IE2 &= ~UCA0TXIE;
@@ -154,6 +159,7 @@ __interrupt void UART_RX_ISR(void){
                 if(UCA0RXBUF == 0x55){
                     RX_data_cnt = 0;
                     RX_state++;
+                    UART_RESET_TIMEOUT();
                 }
                 break;
             case GET_CMD:
@@ -177,6 +183,7 @@ __interrupt void UART_RX_ISR(void){
                 RX_packet.crc |= (uint16_t)UCA0RXBUF;
                 RX_state = GET_START;
                 RX_is_packet = 1;
+                uart_timeout_ticking = 0;
                 break;
             case GET_DATA:
                 if(RX_data_cnt < RX_packet.data_size){

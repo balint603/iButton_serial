@@ -23,6 +23,7 @@
 #define INFO_ONLY_GREEN 4
 #define INFO_ONLY_RED 5
 #define INFO_BOTH 6
+#define INFO_BOTH_ONLY_LIGHT 7
 
 #define INFO_SHORT 200
 #define INFO_LONG 1600
@@ -61,6 +62,9 @@ volatile uint8_t LED_flag;
 volatile uint_fast16_t timeout_ms;
 volatile uint8_t timeout_ticking;
 
+volatile uint16_t uart_timeot_ms = 1000;
+volatile uint8_t uart_timeout_ticking;
+
 volatile uint_fast16_t user_info_ms;
 volatile uint8_t user_info_flag;
 volatile uint8_t user_info_mode;
@@ -95,6 +99,7 @@ void ibutton_fsm_init(){
 
     GPIO_SET_INPUT_PULL_UP_VCC(PUSHBUTTON_PORT,PUSHBUTTON_PIN);
 
+    REL_PORT_DIR |= REL_BIT;
     P2OUT &= ~REL_BIT;  // relay
     REL_OFF;
 
@@ -118,16 +123,20 @@ void ibutton_fsm_init(){
         // todo memory check
 
         //uart_send_str("Please touch a master key!", 1);
-        SEND_USER_INFO(INFO_ONLY_GREEN,0,INFO_SHORT);
+        LED_TURN_ON_GR;
+        LED_TURN_ON_RE;
+        user_info_mode = INFO_BOTH_ONLY_LIGHT;
+        user_info_flag = 1;
         ibutton_fsm.current_state = add_master_key;
     }
     else if( !(GET_INPUT) && GPIO_GET_INPUT(JUMPER_M_PORT,JUMPER_M_PIN) ){       // Check shorted and enabled
         SEND_USER_INFO(INFO_ONLY_GREEN,0,INFO_LONG);
         ibutton_fsm.current_state = shorted_reader;
         TIMEOUT(INFO_LONG);
-    }else
+    }else{
         make_sound(0, INFO_SHORT);
-    LED_TURN_OFF_RE;
+        LED_TURN_OFF_RE;
+    }
 }
 
 void read_pushbutton(){
@@ -238,6 +247,11 @@ void ibutton_user_info_mode_service(){
             LED_BLINK_RE;
             user_info_ms = 999;
             break;
+        case INFO_BOTH_ONLY_LIGHT:
+            LED_BLINK_GR;
+            LED_BLINK_RE;
+            user_info_ms = 999;
+            break;
         case 3:
             make_sound(0, INFO_SHORT);
             user_info_mode--;
@@ -267,12 +281,16 @@ static void shorted_reader(inputs_t input){
     if(!timeout_ticking){
         if(!GET_INPUT && GPIO_GET_INPUT(JUMPER_M_PORT,JUMPER_M_PIN)){                  // Still pulled down and enabled
             ibutton_fsm.current_state = add_master_key;
-            user_info_mode = INFO_ONLY_GREEN;
+            user_info_mode = INFO_BOTH_ONLY_LIGHT;
+            user_info_flag = 1;
+            LED_TURN_ON_GR;
+            LED_TURN_ON_RE;
             TIMEOUT(60000);
         }
         else{
             ibutton_fsm.current_state = check_touch;
             LED_TURN_ON_GR;
+            LED_TURN_OFF_RE;
             user_info_mode = INFO_NONE;
         }
     }
@@ -422,7 +440,7 @@ static void add_master_key(inputs_t input){
         }
         if(!compare_key(iButton_data.key_code, iButton_data.master_key_code_ptr)){
             //uart_send_str("Fast add mode#", 1);
-            make_sound(1, INFO_SHORT);
+            SEND_USER_INFO(INFO_ONLY_GREEN,0,INFO_SHORT);
             TIMEOUT(60000);
             ibutton_fsm.current_state = fast_add_mode;
         }
@@ -434,11 +452,12 @@ static void add_master_key(inputs_t input){
         break;
     case master_key_touched:
         //uart_send_str("Fast add mode#",1);
-        make_sound(0, INFO_SHORT);
         TIMEOUT(60000);
+        SEND_USER_INFO(INFO_ONLY_GREEN,0,INFO_SHORT);
         ibutton_fsm.current_state = fast_add_mode;
         break;
     }
+    LED_TURN_OFF_RE;
     ibutton_fsm.input_to_serve = 0;
 }
 
@@ -461,8 +480,9 @@ static void master_delete(inputs_t input){
             LED_TURN_OFF_RE;
             LED_TURN_ON_GR;
             SEND_USER_INFO(INFO_ONLY_GREEN,0,INFO_SHORT);
-            //uart_send_str("Please touch a master key!", 1);
-            ibutton_fsm.current_state = add_master_key;
+            //uart_send_str("Fast add mode!", 1);
+            TIMEOUT(60000);
+            ibutton_fsm.current_state = fast_add_mode;
         default:
             break;
     }
@@ -609,6 +629,12 @@ __interrupt void Timer0_A0_ISR(void){
             ibutton_fsm_put_input(timeout);
             ibutton_fsm.input_to_serve = 1;
             timeout_ticking = 0;
+        }
+    }
+    if(uart_timeout_ticking){
+        if(!(--uart_timeot_ms)){
+            uart_timeout_ticking = 0;
+            uart_timeout();
         }
     }
     if(!piezo_on_time--){

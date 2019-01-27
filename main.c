@@ -61,8 +61,9 @@ void init_ports(){
 int main(void)
 {
     WATCHDOG_STOP;   // stop watchdog timer
+
     init_clk();
-    init_ports();
+   // init_ports();
     init_system_timer();
 
     uart_init();
@@ -72,6 +73,7 @@ int main(void)
 
 	//uart_send_str("System Start", 1);
 	WATCHDOG_RESET;
+	__delay_cycles(120000);
     __enable_interrupt();
 	while(1){
 
@@ -90,11 +92,11 @@ int main(void)
             ibutton_user_info_mode_service();
             user_info_flag = 0;
         }
-        if(LED_flag){
+        /*if(LED_flag){
 	        P1OUT ^= BIT0;
 
 	        LED_flag = 0;
-        }
+        } */
         WATCHDOG_RESET;   // stop watchdog timer
 	}
 	return 0;
