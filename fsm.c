@@ -29,9 +29,7 @@
 #define INFO_LONG 1600
 
 
-
-
-/** State functions */
+/** State functions_________________________________________________________________________________________________*/
 static void shorted_reader(inputs_t input);
 static void access_allow_bistable(inputs_t input);
 static void access_allow_bistable_same_key(inputs_t input);
@@ -42,7 +40,10 @@ static void master_delete(inputs_t input);
 static void master_mode(inputs_t input);
 static void add_master_key(inputs_t input);
 static void check_touch(inputs_t input);
+/** State functions end_____________________________________________________________________________________________*/
 
+
+/** FLASH pointers initialization */
 iButton_key_data_t iButton_data = {
                                     .master_key_code_ptr = (uint16_t*)SETTINGS_START,
                                     .opening_time_ptr = (uint16_t*)FLASH_TIME_ADDR,
@@ -50,7 +51,11 @@ iButton_key_data_t iButton_data = {
                                     .reader_enable_flag = 1,
 };
 
-void make_sound(uint8_t mode, uint16_t time);
+/** STATIC FUNCTIONS declare________________________________________________________________________________________ */
+static void init_ports();
+static void make_sound(uint8_t mode, uint16_t time);
+static void refresh_timing();
+/** STATIC FUNCTIONS end____________________________________________________________________________________________ */
 
 /** iButton reading. */
 uint8_t prev_presence = 0;
@@ -83,14 +88,16 @@ volatile uint8_t TX_is_packet;
                         user_info_mode = mode;\
                         user_info_flag = 1;
 
-/**
- * Initialization.
- * If the
- * */
-void ibutton_fsm_init(){
-    uint16_t data_ff[] = {0xFFFF,0xFFFF,0xFFFF};
-    uint16_t basic_time = 30;
+#define PUT_INPUT(put_this) {ibutton_fsm.input = put_this; ibutton_fsm.input_to_serve = 1;}
 
+#define READ_PUSHBUTTON {\
+    if( !(GPIO_GET_INPUT(PUSHBUTTON_PORT,PUSHBUTTON_PIN) || ibutton_fsm.input_to_serve) ){\
+        PUT_INPUT(button_pressed);\
+    }\
+}
+
+/** STATIC functions____________________________________________________________________________________ */
+static void init_ports(){
     PIEZO_PORT_DIR |= PIEZO_BIT;
     P2SEL &= ~BIT7;
     GPIO_SET_INPUT_PULL_UP_VCC(JUMPER_A_PORT,JUMPER_A_PIN);
@@ -102,6 +109,39 @@ void ibutton_fsm_init(){
     REL_PORT_DIR |= REL_BIT;
     P2OUT &= ~REL_BIT;  // relay
     REL_OFF;
+}
+
+
+static void refresh_timing(){
+    uint16_t time = 0;
+
+    if(GPIO_GET_INPUT(JUMPER_A_PORT, JUMPER_A_PIN))
+        time += OPENING_TIME_J_A;
+    if(GPIO_GET_INPUT(JUMPER_B_PORT, JUMPER_B_PIN))
+        time += OPENING_TIME_J_B;
+    if(time)
+        iButton_data.opening_time = time;
+    else
+        iButton_data.opening_time = *(iButton_data.opening_time_ptr);
+}
+
+
+
+
+/** STATIC functions end___________________________________________________________________________________ */
+
+
+/** PUBLIC functions end___________________________________________________________________________________ */
+
+/**
+ * Initialization.
+ * If the
+ * */
+void ibutton_fsm_init(){
+    uint16_t data_ff[] = {0xFFFF,0xFFFF,0xFFFF};
+    uint16_t basic_time = OPENING_TIME_BASIC;
+
+    init_ports();
 
     reader_polling_ms = READ_POLLING_TIME;
     reader_polling_flag = 1;
@@ -139,24 +179,20 @@ void ibutton_fsm_init(){
     }
 }
 
-void read_pushbutton(){
-    if( !(GPIO_GET_INPUT(PUSHBUTTON_PORT,PUSHBUTTON_PIN) || ibutton_fsm.input_to_serve) ){
-        ibutton_fsm_put_input(button_pressed);
-    }
-}
-
 void ibutton_read(){
 
     if( curr_presence = ibutton_test_presence()){
         if(!iButton_data.reader_enable_flag){
             reader_disable_ms = READ_DISABLE_TIME;
-            read_pushbutton();
+            READ_PUSHBUTTON;
         }
         else if(!ibutton_read_it(iButton_data.key_code)){
-            if(compare_key((uint16_t*)iButton_data.master_key_code_ptr, iButton_data.key_code))
-                ibutton_fsm_put_input(key_touched);
-            else
-                ibutton_fsm_put_input(master_key_touched);
+            if(compare_key((uint16_t*)iButton_data.master_key_code_ptr, iButton_data.key_code)){
+                PUT_INPUT(key_touched);
+            }
+            else{
+                PUT_INPUT(master_key_touched);
+            }
             ibutton_fsm.input_to_serve = 1;
             iButton_data.reader_enable_flag = 0;
         }
@@ -164,8 +200,9 @@ void ibutton_read(){
     else if(prev_presence){
         reader_disable_ms = READ_DISABLE_TIME;
     }
-    else
-        read_pushbutton();
+    else{
+        READ_PUSHBUTTON;
+    }
     prev_presence = curr_presence;
     reader_polling_flag = 0;
 }
@@ -174,10 +211,7 @@ void ibutton_fsm_change_state(){
     ibutton_fsm.current_state(ibutton_fsm.input);
 }
 
-void ibutton_fsm_put_input(inputs_t input){
-    ibutton_fsm.input = input;
-    ibutton_fsm.input_to_serve = 1;
-}
+
 /**
  * \ret 0  Key codes match.
  * \ret 1  Key codes do not match.
@@ -202,26 +236,10 @@ int copy_key(uint16_t *from, uint16_t *to){
     return 0;
 }
 
-void refresh_timing(){
-    iButton_data.opening_time = 0;
-    if(GPIO_GET_INPUT(JUMPER_A_PORT, JUMPER_A_PIN)){
-        if(GPIO_GET_INPUT(JUMPER_B_PORT, JUMPER_B_PIN))
-            iButton_data.opening_time = 150;
-        else
-            iButton_data.opening_time = 100;
-    }
-    else{
-        if(GPIO_GET_INPUT(JUMPER_B_PORT, JUMPER_B_PIN))
-            iButton_data.opening_time = 50;
-        else
-            iButton_data.opening_time = *(iButton_data.opening_time_ptr);
-    }
-}
-
 /**
  * \param mode: toggle or reset/set output mode.
  * */
-void make_sound(uint8_t mode, uint16_t time){
+static void make_sound(uint8_t mode, uint16_t time){
     if(mode)
         TA0CCTL1 = OUTMOD_4;
     else
@@ -271,6 +289,7 @@ void ibutton_user_info_mode_service(){
             break;
     }
 }
+/** PUBLIC functions end___________________________________________________________________________________ */
 
 
 
@@ -342,8 +361,8 @@ static void access_allow_bistable_same_key(inputs_t input){
 }
 
 static void access_allow(inputs_t input){
-    REL_ON;
     LED_TURN_OFF_GR;
+    REL_ON;
     if(!timeout_ticking){
         if(!(--iButton_data.opening_time)){
            // uart_send_str("RELAY=OFF", 1);
@@ -355,10 +374,13 @@ static void access_allow(inputs_t input){
             REL_OFF;
             ibutton_fsm.current_state = check_touch;
             refresh_timing();
-        }else
-            TIMEOUT(200);   // Wait 100ms again...
+        }else{
+            make_sound(0, INFO_SHORT);
+            TIMEOUT(1000);   // Wait 500ms again...
+        }
     }
     ibutton_fsm.input_to_serve = 0;
+
 }
 
 static void access_denied(inputs_t input){
@@ -474,8 +496,6 @@ static void master_delete(inputs_t input){
             LED_TURN_OFF_GR;
             LED_TURN_ON_RE;
             segment_erase(0);   // All segment erase!
-            segment_erase(FLASH_MASTER_CODE);       // Erase information memory.
-            flash_write_word(OPENING_TIME_BASIC, FLASH_TIME);
             flash_init();
             LED_TURN_OFF_RE;
             LED_TURN_ON_GR;
@@ -562,7 +582,7 @@ static void check_touch(inputs_t input){
                 default:
                     ibutton_fsm.current_state = access_allow;
                     refresh_timing();
-                    TIMEOUT(200);
+                    TIMEOUT(1000);
                     break;
             }
             LED_TURN_OFF_GR;
@@ -584,7 +604,7 @@ static void check_touch(inputs_t input){
                 default:
                     ibutton_fsm.current_state = access_allow;
                     refresh_timing();
-                    TIMEOUT(200);
+                    TIMEOUT(1000);
                     break;
             }
             LED_TURN_OFF_GR;
@@ -605,7 +625,7 @@ static void check_touch(inputs_t input){
             LED_TURN_OFF_RE;
             ibutton_fsm.current_state = access_allow;
             refresh_timing();
-            TIMEOUT(200);
+            TIMEOUT(1000);
             LED_TURN_OFF_GR;
         }
         break;
@@ -626,7 +646,7 @@ __interrupt void Timer0_A0_ISR(void){
     }
     if(timeout_ticking){
         if(!timeout_ms--){
-            ibutton_fsm_put_input(timeout);
+            PUT_INPUT(timeout);
             ibutton_fsm.input_to_serve = 1;
             timeout_ticking = 0;
         }
@@ -652,6 +672,6 @@ __interrupt void Timer0_A0_ISR(void){
     }
     if( !(--reader_disable_ms)){
         iButton_data.reader_enable_flag = 1;
-        ibutton_fsm_put_input(key_away);
+        PUT_INPUT(key_away);
     }
 }

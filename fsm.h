@@ -44,7 +44,10 @@
 
 #define READ_DISABLE_TIME 600 /* ms/2 */
 #define READ_POLLING_TIME 10 /* ms/2 */
-#define OPENING_TIME_BASIC 150 /* *100ms */
+
+#define OPENING_TIME_BASIC 2 /* ms/2 */
+#define OPENING_TIME_J_A 20   /* ms/2 */
+#define OPENING_TIME_J_B 10   /* ms/2 */
 
 #define MODE_NORMAL 0xFFFF
 #define MODE_BISTABLE 0xAAAA
@@ -91,7 +94,6 @@ void ibutton_read();
 void make_sound(uint8_t mode, uint16_t time);
 void ibutton_fsm_put_input(inputs_t input);
 int compare_key(uint16_t *key1, uint16_t *key2);
-void refresh_timing();
 void ibutton_user_info_mode_service();
 void ibutton_timeout_service();
 
