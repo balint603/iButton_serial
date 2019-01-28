@@ -2,9 +2,7 @@
  * fsm.c
  *
  *  Created on: 2018. okt. 27.
- *      Author: MAJXAAPPTE
- *
- *
+ *      Author: E-Kontakt Bt.
  *  Description:
  *  This module is a finite state machine. Using state functions and a global pointer which points to a state function.
  */
@@ -29,6 +27,37 @@
 #define INFO_LONG 1600
 
 
+/**
+ *
+ * \var mode_ptr: If this equals to 0xFFFF normal mode is active, 0xAAAA - Bistable, 0x5555 - Bistable same key.
+ * */
+typedef struct iButton_key_data{
+    uint16_t const *master_key_code_ptr;
+    uint16_t const *opening_time_ptr;
+    uint16_t const *mode_ptr;
+    uint16_t const *button_enable_ptr;
+    volatile uint16_t opening_time;
+    uint16_t key_code[3];
+    uint16_t prev_key_code[3];
+    const uint16_t super_master_key_code[3];
+    volatile uint8_t reader_enable_flag;
+} iButton_key_data_t;
+
+/** FLASH constant pointers initialization */
+iButton_key_data_t iButton_data = {
+                                    .master_key_code_ptr = (uint16_t*)SETTINGS_START,
+                                    .opening_time_ptr = (uint16_t*)FLASH_TIME_ADDR,
+                                    .mode_ptr = (uint16_t*)FLASH_MODE_ADDR,
+                                    .reader_enable_flag = 1,
+};
+
+
+/** STATIC FUNCTIONS declare________________________________________________________________________________________ */
+static void init_ports();
+static void make_sound(uint8_t mode, uint16_t time);
+static void refresh_timing();
+/** STATIC FUNCTIONS end____________________________________________________________________________________________ */
+
 /** State functions_________________________________________________________________________________________________*/
 static void shorted_reader(inputs_t input);
 static void access_allow_bistable(inputs_t input);
@@ -42,27 +71,9 @@ static void add_master_key(inputs_t input);
 static void check_touch(inputs_t input);
 /** State functions end_____________________________________________________________________________________________*/
 
-
-/** FLASH pointers initialization */
-iButton_key_data_t iButton_data = {
-                                    .master_key_code_ptr = (uint16_t*)SETTINGS_START,
-                                    .opening_time_ptr = (uint16_t*)FLASH_TIME_ADDR,
-                                    .mode_ptr = (uint16_t*)FLASH_MODE_ADDR,
-                                    .reader_enable_flag = 1,
-};
-
-/** STATIC FUNCTIONS declare________________________________________________________________________________________ */
-static void init_ports();
-static void make_sound(uint8_t mode, uint16_t time);
-static void refresh_timing();
-/** STATIC FUNCTIONS end____________________________________________________________________________________________ */
-
-/** iButton reading. */
+/** VARIABLES______________________________________________________________________________________________________ */
 uint8_t prev_presence = 0;
 uint8_t curr_presence = 0;
-
-uint_fast16_t LED_ms = 125;
-volatile uint8_t LED_flag;
 
 volatile uint_fast16_t timeout_ms;
 volatile uint8_t timeout_ticking;
@@ -82,6 +93,15 @@ volatile uint8_t RX_is_packet;
 volatile uint8_t TX_is_packet;
 
 
+ibutton_fsm_t ibutton_fsm;
+uint_fast16_t reader_polling_ms;
+volatile uint8_t reader_polling_flag;
+uint_fast16_t reader_disable_ms;
+
+/** VARIABLES end__________________________________________________________________________________________________ */
+
+
+/** MACRO__________________________________________________________________________________________________________ */
 #define TIMEOUT(time) {timeout_ms = time; timeout_ticking = 1;}
 #define SEND_USER_INFO(mode,sound_mode,sound_length)\
                         make_sound(sound_mode, sound_length);\
@@ -95,6 +115,8 @@ volatile uint8_t TX_is_packet;
         PUT_INPUT(button_pressed);\
     }\
 }
+/** MACRO end______________________________________________________________________________________________________ */
+
 
 /** STATIC functions____________________________________________________________________________________ */
 static void init_ports(){
@@ -111,7 +133,6 @@ static void init_ports(){
     REL_OFF;
 }
 
-
 static void refresh_timing(){
     uint16_t time = 0;
 
@@ -125,17 +146,21 @@ static void refresh_timing(){
         iButton_data.opening_time = *(iButton_data.opening_time_ptr);
 }
 
-
-
-
+static void make_sound(uint8_t mode, uint16_t time){
+    if(mode)
+        TA0CCTL1 = OUTMOD_4;
+    else
+        TA0CCTL1 = OUTMOD_7;
+    PIEZO_PORT_DIR |= PIEZO_BIT;
+    piezo_on_time = time;
+    PIEZO_PORT_SEL |= PIEZO_BIT; // start beep
+}
 /** STATIC functions end___________________________________________________________________________________ */
 
 
-/** PUBLIC functions end___________________________________________________________________________________ */
-
+/** PUBLIC functions_______________________________________________________________________________________ */
 /**
- * Initialization.
- * If the
+ * Initialization of the state machine.
  * */
 void ibutton_fsm_init(){
     uint16_t data_ff[] = {0xFFFF,0xFFFF,0xFFFF};
@@ -177,8 +202,11 @@ void ibutton_fsm_init(){
         make_sound(0, INFO_SHORT);
         LED_TURN_OFF_RE;
     }
-}
 
+}
+/**
+ * iButton reader polling.
+ * */
 void ibutton_read(){
 
     if( curr_presence = ibutton_test_presence()){
@@ -211,44 +239,9 @@ void ibutton_fsm_change_state(){
     ibutton_fsm.current_state(ibutton_fsm.input);
 }
 
-
-/**
- * \ret 0  Key codes match.
- * \ret 1  Key codes do not match.
- * \ret -1 Null parameters.
- * */
-int compare_key(uint16_t *key1, uint16_t *key2){
-    uint8_t i;
-    if(!(key1 && key2))
-        return -1;
-    for(i=3; i > 0; i--)
-        if(*(key1++) != *(key2++))
-            return 1;
-    return 0;
-}
-
-int copy_key(uint16_t *from, uint16_t *to){
-    if(!(from || to))
-        return 1;
-    uint8_t i;
-    for(i = 3; i > 0; i--)
-        *(to++) = *(from++);
-    return 0;
-}
-
 /**
  * \param mode: toggle or reset/set output mode.
  * */
-static void make_sound(uint8_t mode, uint16_t time){
-    if(mode)
-        TA0CCTL1 = OUTMOD_4;
-    else
-        TA0CCTL1 = OUTMOD_7;
-    PIEZO_PORT_DIR |= PIEZO_BIT;
-    piezo_on_time = time;
-    PIEZO_PORT_SEL |= PIEZO_BIT; // start beep
-}
-
 void ibutton_user_info_mode_service(){
     switch(user_info_mode){
         case INFO_ONLY_GREEN:
@@ -288,6 +281,30 @@ void ibutton_user_info_mode_service(){
             user_info_mode = INFO_NONE;
             break;
     }
+}
+
+/**
+ * \ret 0  Key codes match.
+ * \ret 1  Key codes do not match.
+ * \ret -1 Null parameters.
+ * */
+int compare_key(uint16_t *key1, uint16_t *key2){
+    uint8_t i;
+    if(!(key1 && key2))
+        return -1;
+    for(i=3; i > 0; i--)
+        if(*(key1++) != *(key2++))
+            return 1;
+    return 0;
+}
+
+int copy_key(uint16_t *from, uint16_t *to){
+    if(!(from || to))
+        return 1;
+    uint8_t i;
+    for(i = 3; i > 0; i--)
+        *(to++) = *(from++);
+    return 0;
 }
 /** PUBLIC functions end___________________________________________________________________________________ */
 
@@ -370,7 +387,7 @@ static void access_allow(inputs_t input){
             LED_TURN_ON_GR;
             // test uart
 
-            uart_send((uint8_t*)iButton_data.key_code, 1, 6);
+            //uart_send((uint8_t*)iButton_data.key_code, 1, 6);
             REL_OFF;
             ibutton_fsm.current_state = check_touch;
             refresh_timing();
@@ -380,7 +397,6 @@ static void access_allow(inputs_t input){
         }
     }
     ibutton_fsm.input_to_serve = 0;
-
 }
 
 static void access_denied(inputs_t input){
@@ -640,38 +656,34 @@ static void check_touch(inputs_t input){
  * */
 #pragma vector=TIMER0_A0_VECTOR
 __interrupt void Timer0_A0_ISR(void){
-    if(!(--LED_ms)){    // DEBUG LED
-        LED_flag = 1;
-        LED_ms = 1000;
-    }
-    if(timeout_ticking){
+    if(timeout_ticking){            // FSM timing
         if(!timeout_ms--){
             PUT_INPUT(timeout);
             ibutton_fsm.input_to_serve = 1;
             timeout_ticking = 0;
         }
     }
-    if(uart_timeout_ticking){
+    if( !( --reader_polling_ms )){  // iButton reader timing
+        reader_polling_flag = 1;
+        reader_polling_ms = READ_POLLING_TIME;
+    }
+    if( !(--reader_disable_ms)){    // iButton reader disable time
+        iButton_data.reader_enable_flag = 1;
+        PUT_INPUT(key_away);
+    }
+    if(uart_timeout_ticking){       // UART timing
         if(!(--uart_timeot_ms)){
             uart_timeout_ticking = 0;
             uart_timeout();
         }
     }
-    if(!piezo_on_time--){
+    if(!piezo_on_time--){           // Piezo timing
          PIEZO_PORT_SEL &= ~PIEZO_BIT;
          PIEZO_PORT_DIR &= ~PIEZO_BIT;
     }
-    if(user_info_mode){
+    if(user_info_mode){             // User feedback information timing
         if(!user_info_ms--){
             user_info_flag = 1;
         }
-    }
-    if( !( --reader_polling_ms )){
-        reader_polling_flag = 1;
-        reader_polling_ms = READ_POLLING_TIME;
-    }
-    if( !(--reader_disable_ms)){
-        iButton_data.reader_enable_flag = 1;
-        PUT_INPUT(key_away);
     }
 }

@@ -16,12 +16,17 @@ extern volatile uint8_t user_info_flag;
 extern volatile uint8_t LED_flag;
 extern volatile uint_fast16_t timeout_ms;
 
+extern ibutton_fsm_t ibutton_fsm;
+extern uint_fast16_t reader_polling_ms;
+extern volatile uint8_t reader_polling_flag;
+extern uint_fast16_t reader_disable_ms;
+
 /** GLOBAL VARIABLES END___________________________________________________________________________ */
 
 /** INITIALIZATION FUNCTIONS START_______________________________________________________________ */
 void init_clk(){
-    BCSCTL3 = LFXT1S_2;             // ACLK VLO source
-    IFG1 &= ~OFIFG;                 // Delete Oscillator Fault bit
+    BCSCTL3 = LFXT1S_2;
+    IFG1 &= ~OFIFG;
     DCOCTL = CALDCO_12MHZ;           // Calibrated data
     BCSCTL1 = CALBC1_12MHZ;
     BCSCTL1 |= DIVA_0;
@@ -75,8 +80,10 @@ int main(void)
 	WATCHDOG_RESET;
 	__delay_cycles(120000);
     __enable_interrupt();
-	while(1){
 
+
+    uart_send_flash_data();
+	while(1){
 	    if(ibutton_fsm.input_to_serve){
 	        ibutton_fsm_change_state();
 	    }else{
@@ -92,11 +99,6 @@ int main(void)
             ibutton_user_info_mode_service();
             user_info_flag = 0;
         }
-        /*if(LED_flag){
-	        P1OUT ^= BIT0;
-
-	        LED_flag = 0;
-        } */
         WATCHDOG_RESET;   // stop watchdog timer
 	}
 	return 0;

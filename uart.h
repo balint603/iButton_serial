@@ -17,15 +17,16 @@
 #define RX_DATA_SIZE 102
 #define UART_TIMEOUT_MS 200
 
-
-/*________________________________ END SETTINGS ________________________________ */
+#define TX_BUFFER_SIZE 50
+/*________________________________ END SETTINGS __________________________________ */
 
 /** UART command types */
-enum UART_cmd_type{CMD_ECHO = 1, CMD_INFO};
+enum UART_cmd_type{CMD_ECHO = 1, CMD_INFO, CMD_FLASH_DATA};
 
 void uart_init();
 void uart_process_command();
 int uart_send(uint8_t *data, uint8_t cmd, uint8_t data_size);
+void uart_send_flash_data();
 void uart_timeout();
 
 volatile extern uint8_t RX_is_packet;

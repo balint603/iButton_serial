@@ -49,6 +49,7 @@
 #define OPENING_TIME_J_A 20   /* ms/2 */
 #define OPENING_TIME_J_B 10   /* ms/2 */
 
+/** Door opening modes */
 #define MODE_NORMAL 0xFFFF
 #define MODE_BISTABLE 0xAAAA
 #define MODE_BISTABLE_SAME_K 0x5555
@@ -62,6 +63,7 @@ typedef enum inputs {
     relay_timeout
 } inputs_t;
 
+/** Pointer to the actual state. */
 typedef void ( *p_state_handler )(inputs_t input);
 
 typedef struct fsm{
@@ -70,37 +72,14 @@ typedef struct fsm{
     uint8_t input_to_serve;
 } ibutton_fsm_t;
 
-
-
-/**
- *
- * \var mode_ptr: If this equals to 0xFFFF normal mode is active, 0xAAAA - Bistable, 0x5555 - Bistable same key.
- * */
-typedef struct iButton_key_data{
-    uint16_t const *master_key_code_ptr;
-    uint16_t const *opening_time_ptr;
-    uint16_t const *mode_ptr;
-    uint16_t const *button_enable_ptr;
-    volatile uint16_t opening_time;
-    uint16_t key_code[3];
-    uint16_t prev_key_code[3];
-    const uint16_t super_master_key_code[3];
-    volatile uint8_t reader_enable_flag;
-} iButton_key_data_t;
-
+/** PUBLIC functions */
 void ibutton_fsm_init();
 void ibutton_fsm_change_state();
 void ibutton_read();
-void make_sound(uint8_t mode, uint16_t time);
 void ibutton_fsm_put_input(inputs_t input);
-int compare_key(uint16_t *key1, uint16_t *key2);
 void ibutton_user_info_mode_service();
 void ibutton_timeout_service();
-
-ibutton_fsm_t ibutton_fsm;
-uint_fast16_t reader_polling_ms;
-volatile uint8_t reader_polling_flag;
-uint_fast16_t reader_disable_ms;
+int compare_key(uint16_t *key1, uint16_t *key2);
 
 /** Input to serve */
 
