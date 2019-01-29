@@ -51,10 +51,6 @@ void init_system_timer(){
 
 }
 
-void init_ports(){
-    P1DIR |= BIT0;
-    P1OUT &= ~(BIT0);
-}
 /** INITIALIZATION FUNCTIONS END_________________________________________________________________ */
 
 /**
@@ -68,7 +64,6 @@ int main(void)
     WATCHDOG_STOP;   // stop watchdog timer
 
     init_clk();
-   // init_ports();
     init_system_timer();
 
     uart_init();
@@ -81,8 +76,8 @@ int main(void)
 	__delay_cycles(120000);
     __enable_interrupt();
 
-
-    uart_send_flash_data();
+    uint8_t *flash_ptr = (uint8_t*)0xE600;
+    uart_send_flash_data(flash_ptr);
 	while(1){
 	    if(ibutton_fsm.input_to_serve){
 	        ibutton_fsm_change_state();
@@ -93,7 +88,7 @@ int main(void)
 	    }
 
 	    if(RX_is_packet)
-	        uart_process_command();
+	        ibutton_process_command();
 
         if(user_info_flag){
             ibutton_user_info_mode_service();

@@ -79,8 +79,7 @@ void ibutton_read();
 void ibutton_fsm_put_input(inputs_t input);
 void ibutton_user_info_mode_service();
 void ibutton_timeout_service();
+void ibutton_process_command();
 int compare_key(uint16_t *key1, uint16_t *key2);
-
-/** Input to serve */
 
 #endif /* FSM_H_ */

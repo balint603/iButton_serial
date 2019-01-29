@@ -15,24 +15,16 @@
 #include "fsm.h"
 #include "flash.h"
 
-/** UART RX buffer type */
-typedef struct Packet {
-    uint8_t cmd_b;
-    uint8_t data_size;
-    uint8_t data[RX_DATA_SIZE];
-    uint16_t crc;
-} Packet_t;
 
 /** UART states */
 typedef enum UART_state{GET_START,GET_CMD,GET_SIZE,GET_DATA,GET_CRC_1,GET_CRC_0} state_t;
 
-
+/** UART RX buffer type */
 
 volatile state_t RX_state = GET_START;
 uint8_t RX_data_cnt;
-Packet_t RX_packet;
 
-
+/** UART TX */
 typedef struct {
     uint8_t data_buf[50];
     uint8_t i_first;
@@ -58,7 +50,7 @@ static void crc_do(uint8_t *data, int length, uint16_t *crc);
 void uart_timeout(){
     uint8_t data = 69;
     RX_state = GET_START;
-    uart_send(&data, CMD_INFO, 1);
+    uart_send_packet(&data, CMD_INFO, 1);
 }
 
 /**
@@ -94,21 +86,6 @@ void uart_init(){
     IE2 |= UCA0RXIE;
 }
 
-/**
- * Processing incoming UART commands.
- * See defined commands.
- * */
-void uart_process_command(){
-    switch (RX_packet.cmd_b) {
-        case CMD_ECHO:
-           // if(!uart_send(RX_packet.data, RX_packet.cmd_b, RX_packet.data_size));
-             //   RX_is_packet = 0;
-            break;
-        default:
-            break;
-    }
-}
-
 int uart_send_byte(uint8_t byte){
     __disable_interrupt();
     if(TX_buffer.num_bytes < TX_BUFFER_SIZE){
@@ -129,7 +106,7 @@ int uart_send_byte(uint8_t byte){
  * \return 1 when: TX buffer is busy, size of data limitation, data is null.
  *
  * */
-int uart_send(uint8_t *data, uint8_t cmd, uint8_t data_size){
+int uart_send_packet(uint8_t *data, uint8_t cmd, uint8_t data_size){
     __disable_interrupt();
     uint16_t crc_value = 0xFFFF;
     uint16_t crc_value_msb = 0;
@@ -159,43 +136,44 @@ int uart_send(uint8_t *data, uint8_t cmd, uint8_t data_size){
 }
 
 /**
- * Stream out the key code domain of the flash memory.
+ * Stream out 256byte content of memory.
+ * \param *flash_ptr starting address
  * */
-void uart_send_flash_data(){
+void uart_send_flash_data(uint8_t *flash_ptr){
     uint8_t i;
     uint16_t k;
     uint8_t cmd_arr[] = {CMD_FLASH_DATA, 0};
-    uint8_t *flash_ptr = (uint8_t*)SEGMENT_0;
     uint16_t crc_val[2];
+    crc_val[0] = 0xFFFF;
 
     WATCHDOG_STOP;
     while(TX_buffer.num_bytes)
         ;
 
-    for(i = 18; i > 0; i --){
-        crc_val[0] = 0xFFFF;
+    while(!(IFG2 & UCA0TXIFG))
+        ;
+    UCA0TXBUF = 0x55;
+
+    for(k = 0; k < 2; k++){
         while(!(IFG2 & UCA0TXIFG))
             ;
-            UCA0TXBUF = 0x55;
-        for(k = 0; k < 2; k++){
-            while(!(IFG2 & UCA0TXIFG))
-                ;
-            UCA0TXBUF = cmd_arr[k];
-            crc_do(&cmd_arr[k], 1, &crc_val[0]);
-        }
-        for(k = 256; k > 0; k--){
-            while(!(IFG2 & UCA0TXIFG))
-                ;
-            UCA0TXBUF = *(flash_ptr);
-            crc_do(flash_ptr++, 1, &crc_val[0]);
-        }
-        crc_val[1] = crc_val[0];
-        crc_val[1] >>= 8;
-        for(k = 2; k > 0; k){
-            while(!(IFG2 & UCA0TXIFG))
-                ;
-            UCA0TXBUF = (uint8_t)crc_val[--k];
-        }
+        UCA0TXBUF = cmd_arr[k];
+        crc_do(&cmd_arr[k], 1, &crc_val[0]);
+    }
+
+    for(k = 256; k > 0; k--){
+        while(!(IFG2 & UCA0TXIFG))
+            ;
+        UCA0TXBUF = *(flash_ptr);
+        crc_do(flash_ptr++, 1, &crc_val[0]);
+    }
+
+    crc_val[1] = crc_val[0];
+    crc_val[1] >>= 8;
+    for(k = 2; k > 0; ){
+        while(!(IFG2 & UCA0TXIFG))
+            ;
+        UCA0TXBUF = (uint8_t)crc_val[--k];
     }
     WATCHDOG_CONTINUE;
 }

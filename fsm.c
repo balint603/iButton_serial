@@ -91,7 +91,7 @@ volatile uint8_t piezo_ticking;
 /** UART MODULE variables */
 volatile uint8_t RX_is_packet;
 volatile uint8_t TX_is_packet;
-
+volatile Packet_t RX_packet;
 
 ibutton_fsm_t ibutton_fsm;
 uint_fast16_t reader_polling_ms;
@@ -284,6 +284,25 @@ void ibutton_user_info_mode_service(){
 }
 
 /**
+ * Processing incoming UART commands.
+ * See defined commands.
+ * */
+void ibutton_process_command(){
+    switch(RX_packet.cmd_b){
+        case CMD_ECHO:
+            if(!uart_send_packet(RX_packet.data, RX_packet.cmd_b, RX_packet.data_size))
+                ;
+
+            break;
+        case CMD_TEST_OPEN:
+            PUT_INPUT(button_pressed);
+        default:
+            break;
+    }
+    RX_is_packet = 0;
+}
+
+/**
  * \ret 0  Key codes match.
  * \ret 1  Key codes do not match.
  * \ret -1 Null parameters.
@@ -321,7 +340,6 @@ static void shorted_reader(inputs_t input){
             user_info_flag = 1;
             LED_TURN_ON_GR;
             LED_TURN_ON_RE;
-            TIMEOUT(60000);
         }
         else{
             ibutton_fsm.current_state = check_touch;
