@@ -155,6 +155,26 @@ static void make_sound(uint8_t mode, uint16_t time){
     piezo_on_time = time;
     PIEZO_PORT_SEL |= PIEZO_BIT; // start beep
 }
+
+
+static void delete_or_add_key(uint16_t *key_code){
+    uint16_t address;
+    if(flash_search_key(iButton_data.key_code, &address)){
+        flash_delete_key(address);
+        //uart_send_str("Key has been deleted.", 1);
+        SEND_USER_INFO(INFO_2_BEEPS,0,INFO_SHORT);
+    }
+    else{
+        if(!flash_write_data(iButton_data.key_code, 3, address)){
+            //uart_send_str("Key has been added.", 1);
+            SEND_USER_INFO(INFO_NONE,0,INFO_SHORT);
+        }
+        else{
+            //uart_send_str("Key-code save failed!", 1);
+            SEND_USER_INFO(INFO_3_BEEPS,0,INFO_SHORT);
+        }
+    }
+}
 /** STATIC functions end___________________________________________________________________________________ */
 
 
@@ -283,20 +303,34 @@ void ibutton_user_info_mode_service(){
     }
 }
 
+void send_settings_data(){
+    uint8_t *data = (uint8_t*)(FLASH_MASTER_CODE + SETTINGS_START);
+    uart_send_packet(data, TYPE_SEND_SETTINGS, 12);
+}
+
 /**
  * Processing incoming UART commands.
  * See defined commands.
  * */
 void ibutton_process_command(){
-    switch(RX_packet.cmd_b){
-        case CMD_ECHO:
-            if(!uart_send_packet(RX_packet.data, RX_packet.cmd_b, RX_packet.data_size))
+    switch(RX_packet.type_b){
+        case TYPE_ECHO:
+            if(!uart_send_packet(RX_packet.data, RX_packet.type_b, RX_packet.data_size))
                 ;
 
             break;
-        case CMD_TEST_OPEN:
+        case TYPE_TEST:
             PUT_INPUT(button_pressed);
+            break;
+        case TYPE_SEND_SETTINGS:
+
+            send_settings_data();
+            break;
+        case TYPE_WRITE_A_KEY:
+            delete_or_add_key((uint16_t*)RX_packet.data);
+            break;
         default:
+
             break;
     }
     RX_is_packet = 0;
@@ -544,7 +578,6 @@ static void master_delete(inputs_t input){
 }
 
 static void master_mode(inputs_t input){
-    uint16_t address;
     switch(input){
     case timeout:
         //uart_send_str("Normal mode>", 1);
@@ -562,21 +595,7 @@ static void master_mode(inputs_t input){
         ibutton_fsm.current_state = master_delete;
         break;
     case key_touched:
-        if(flash_search_key(iButton_data.key_code, &address)){
-            flash_delete_key(address);
-            //uart_send_str("Key has been deleted.", 1);
-            SEND_USER_INFO(INFO_2_BEEPS,0,INFO_SHORT);
-        }
-        else{
-            if(!flash_write_data(iButton_data.key_code, 3, address)){
-                //uart_send_str("Key has been added.", 1);
-                SEND_USER_INFO(INFO_NONE,0,INFO_SHORT);
-            }
-            else{
-                //uart_send_str("Key-code save failed!", 1);
-                SEND_USER_INFO(INFO_3_BEEPS,0,INFO_SHORT);
-            }
-        }
+        delete_or_add_key(iButton_data.key_code);
         LED_TURN_ON_GR;
         LED_TURN_OFF_RE;
         ibutton_fsm.current_state = check_touch;

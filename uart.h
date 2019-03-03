@@ -21,18 +21,19 @@
 /*________________________________ END SETTINGS __________________________________ */
 
 /** UART command types */
-enum UART_cmd_type{CMD_ECHO = 1, CMD_INFO, CMD_TEST_OPEN, CMD_FLASH_DATA};
+enum UART_cmd_type{TYPE_ECHO = 1, TYPE_INFO, TYPE_TEST, TYPE_SEND_SETTINGS,
+    TYPE_SEND_DATA_CODES, TYPE_SAVE_SETTINGS, TYPE_SAVE_DATA_CODES, TYPE_WRITE_A_KEY, TYPE_OK};
 
 /** UART RX packet */
 typedef struct Packet {
-    uint8_t cmd_b;
+    uint8_t type_b;
     uint8_t data_size;
     uint8_t data[RX_DATA_SIZE];
     uint16_t crc;
 } Packet_t;
 
 void uart_init();
-int uart_send_packet(uint8_t *data, uint8_t cmd, uint8_t data_size);
+int uart_send_packet(uint8_t *data, uint8_t type, uint8_t data_size);
 void uart_send_flash_data(uint8_t *flash_ptr);
 void uart_timeout();
 

@@ -17,7 +17,7 @@
 
 
 /** UART states */
-typedef enum UART_state{GET_START,GET_CMD,GET_SIZE,GET_DATA,GET_CRC_1,GET_CRC_0} state_t;
+typedef enum UART_state{GET_START,GET_TYPE,GET_SIZE,GET_DATA,GET_CRC_1,GET_CRC_0} state_t;
 
 /** UART RX buffer type */
 
@@ -41,7 +41,7 @@ uint8_t TX_buffer[56];
 */
 
 
-int uart_send(uint8_t *data, uint8_t cmd, uint8_t data_size);
+int uart_send(uint8_t *data, uint8_t type, uint8_t data_size);
 static void crc_do(uint8_t *data, int length, uint16_t *crc);
 
 #define UART_RESET_TIMEOUT() {uart_timeout_ticking = 1; uart_timeot_ms = UART_TIMEOUT_MS;}
@@ -50,7 +50,7 @@ static void crc_do(uint8_t *data, int length, uint16_t *crc);
 void uart_timeout(){
     uint8_t data = 69;
     RX_state = GET_START;
-    uart_send_packet(&data, CMD_INFO, 1);
+    uart_send_packet(&data, TYPE_INFO, 1);
 }
 
 /**
@@ -101,12 +101,12 @@ int uart_send_byte(uint8_t byte){
 
 /**
  * Transmit a short of data
- * \param cmd: see defined commands.
+ * \param type: see defined commands.
  * \param *data: pointer to data.
  * \return 1 when: TX buffer is busy, size of data limitation, data is null.
  *
  * */
-int uart_send_packet(uint8_t *data, uint8_t cmd, uint8_t data_size){
+int uart_send_packet(uint8_t *data, uint8_t type, uint8_t data_size){
     __disable_interrupt();
     uint16_t crc_value = 0xFFFF;
     uint16_t crc_value_msb = 0;
@@ -116,14 +116,14 @@ int uart_send_packet(uint8_t *data, uint8_t cmd, uint8_t data_size){
     if(data_size > RX_DATA_SIZE)
         return 1;
 
-    crc_do(&cmd, 1, &crc_value);
+    crc_do(&type, 1, &crc_value);
     crc_do(&data_size, 1, &crc_value);
     crc_do(data, data_size, &crc_value);
     crc_value_msb = crc_value;
     crc_value_msb >>= 8;
 
     uart_send_byte(0x55);
-    uart_send_byte(cmd);
+    uart_send_byte(type);
     uart_send_byte(data_size);
     while(data_size--)
         uart_send_byte(*(data++));
@@ -142,7 +142,7 @@ int uart_send_packet(uint8_t *data, uint8_t cmd, uint8_t data_size){
 void uart_send_flash_data(uint8_t *flash_ptr){
     uint8_t i;
     uint16_t k;
-    uint8_t cmd_arr[] = {CMD_FLASH_DATA, 0};
+    uint8_t type_arr[] = {TYPE_SEND_DATA_CODES, 0};
     uint16_t crc_val[2];
     crc_val[0] = 0xFFFF;
 
@@ -157,8 +157,8 @@ void uart_send_flash_data(uint8_t *flash_ptr){
     for(k = 0; k < 2; k++){
         while(!(IFG2 & UCA0TXIFG))
             ;
-        UCA0TXBUF = cmd_arr[k];
-        crc_do(&cmd_arr[k], 1, &crc_val[0]);
+        UCA0TXBUF = type_arr[k];
+        crc_do(&type_arr[k], 1, &crc_val[0]);
     }
 
     for(k = 256; k > 0; k--){
@@ -204,8 +204,8 @@ __interrupt void UART_RX_ISR(void){
                     UART_RESET_TIMEOUT();
                 }
                 break;
-            case GET_CMD:
-                RX_packet.cmd_b = UCA0RXBUF;
+            case GET_TYPE:
+                RX_packet.type_b = UCA0RXBUF;
                 // todo check
                 RX_state++;
                 break;
