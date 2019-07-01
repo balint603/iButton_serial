@@ -9,17 +9,7 @@
 
 /** GLOBAL VARIABLES______________________________________________________________________________ */
 
-volatile uint8_t uart_rx_buffer_not_empty_flag = 0;
-
-extern uint8_t user_info_mode;
 extern volatile uint8_t user_info_flag;
-extern volatile uint8_t LED_flag;
-extern volatile uint_fast16_t timeout_ms;
-
-extern ibutton_fsm_t ibutton_fsm;
-extern uint_fast16_t reader_polling_ms;
-extern volatile uint8_t reader_polling_flag;
-extern uint_fast16_t reader_disable_ms;
 
 /** GLOBAL VARIABLES END___________________________________________________________________________ */
 
@@ -78,19 +68,20 @@ int main(void)
 
     uint8_t *flash_ptr = (uint8_t*)0xE600;
     uart_send_flash_data(flash_ptr);
-	while(1){
-	    if(ibutton_fsm.input_to_serve){
+
+	while ( 1 ) {
+	    if ( ibutton_fsm_is_input() ){
 	        ibutton_fsm_change_state();
-	    }else{
-	        if(reader_polling_flag){
+	    } else {
+	        if ( ibutton_fsm_get_polling_flag() ){
                 ibutton_read();
             }
 	    }
 
-	    if(RX_is_packet)
+	    if ( ibutton_fsm_is_packet() )
 	        ibutton_process_command();
 
-        if(user_info_flag){
+        if ( user_info_flag ) {
             ibutton_user_info_mode_service();
             user_info_flag = 0;
         }

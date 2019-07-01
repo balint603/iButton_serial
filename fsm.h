@@ -73,6 +73,9 @@ typedef struct fsm{
 } ibutton_fsm_t;
 
 /** PUBLIC functions */
+uint8_t ibutton_fsm_is_input();
+uint8_t ibutton_fsm_get_polling_flag();
+uint8_t ibutton_fsm_is_packet();
 void ibutton_fsm_init();
 void ibutton_fsm_change_state();
 void ibutton_read();
