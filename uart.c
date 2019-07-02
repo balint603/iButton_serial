@@ -1,4 +1,4 @@
-/*
+/**
  * uart.c
  *
  *  Created on: 2018. szept. 29.
@@ -47,30 +47,30 @@ static void crc_do(uint8_t *data, int length, uint16_t *crc);
 #define UART_RESET_TIMEOUT() {uart_timeout_ticking = 1; uart_timeot_ms = UART_TIMEOUT_MS;}
 
 
-void uart_timeout(){
+void uart_timeout() {
     uint8_t data = 69;
     RX_state = GET_START;
     uart_send_packet(&data, TYPE_INFO, 1);
 }
 
-/**
+/** \brief CRC16 generator.
  * \param crc_init null, from 0x0000
  * */
-static void crc_do(uint8_t *data, int length, uint16_t *crc){
+static void crc_do(uint8_t *data, int length, uint16_t *crc) {
     uint8_t i;
-    while (length--) {
+    while ( length-- ) {
         (*crc) ^= *(uint8_t *)data++ << 8;
-        for (i = 8; i > 0; i--)
+        for ( i = 8; i > 0; i-- )
             (*crc) = (*crc) & 0x8000 ? ((*crc) << 1) ^ 0x1021 : (*crc) << 1;
     }
     *crc &= 0xFFFF;
 }
 
 /**
- * UART initialization need to be called at initialization.
+ * UART initialization fuction.
  * Set baudrate, HW UART, enable RX interrupt.
  * */
-void uart_init(){
+void uart_init() {
     UCA0CTL1 |= UCSWRST;
     UCA0CTL1 |= UCSSEL_2;
 
@@ -86,34 +86,36 @@ void uart_init(){
     IE2 |= UCA0RXIE;
 }
 
-int uart_send_byte(uint8_t byte){
-    __disable_interrupt();
-    if(TX_buffer.num_bytes < TX_BUFFER_SIZE){
+/** \brief Send a single byte.
+ * Puts byte to the TX buffer.
+ */
+int uart_send_byte(uint8_t byte) {
+    if ( TX_buffer.num_bytes < TX_BUFFER_SIZE ) {
         TX_buffer.data_buf[TX_buffer.i_last++] = byte;
         TX_buffer.num_bytes++;
-    }else
+    } else
         return 1;
 
-    if(TX_buffer.i_last == TX_BUFFER_SIZE)
+    if ( TX_buffer.i_last == TX_BUFFER_SIZE )
         TX_buffer.i_last = 0;
     return 0;
 }
 
-/**
- * Transmit a short of data
+/** \brief Transmit defined size of data.
+ * Make CRC16 and transmit a packet enabling UART transmit interrupt.
  * \param type: see defined commands.
  * \param *data: pointer to data.
- * \return 1 when: TX buffer is busy, size of data limitation, data is null.
- *
- * */
-int uart_send_packet(uint8_t *data, uint8_t type, uint8_t data_size){
+ * \return 1 TX buffer is busy, size of data limitation, data is null.
+ * \return 0 Transmission start.
+ */
+int uart_send_packet(uint8_t *data, uint8_t type, uint8_t data_size) {
     __disable_interrupt();
     uint16_t crc_value = 0xFFFF;
     uint16_t crc_value_msb = 0;
 
-    if(!data)
+    if ( !data )
         return 1;
-    if(data_size > RX_DATA_SIZE)
+    if ( data_size > RX_DATA_SIZE )
         return 1;
 
     crc_do(&type, 1, &crc_value);
@@ -125,7 +127,7 @@ int uart_send_packet(uint8_t *data, uint8_t type, uint8_t data_size){
     uart_send_byte(0x55);
     uart_send_byte(type);
     uart_send_byte(data_size);
-    while(data_size--)
+    while ( data_size-- )
         uart_send_byte(*(data++));
     uart_send_byte((uint8_t)crc_value_msb);
     uart_send_byte((uint8_t)crc_value);
@@ -135,19 +137,19 @@ int uart_send_packet(uint8_t *data, uint8_t type, uint8_t data_size){
     return 0;
 }
 
-/**
+/** \brief
  * Stream out 256byte content of memory.
  * \param *flash_ptr starting address
- * */
+ * NOT USED
+ */
 void uart_send_flash_data(uint8_t *flash_ptr){
-    uint8_t i;
     uint16_t k;
     uint8_t type_arr[] = {TYPE_SEND_DATA_CODES, 0};
     uint16_t crc_val[2];
     crc_val[0] = 0xFFFF;
 
     WATCHDOG_STOP;
-    while(TX_buffer.num_bytes)
+    while ( TX_buffer.num_bytes ) // TODO wtf is this
         ;
 
     while(!(IFG2 & UCA0TXIFG))
@@ -179,26 +181,36 @@ void uart_send_flash_data(uint8_t *flash_ptr){
 }
 
 #pragma vector=USCIAB0TX_VECTOR
-__interrupt void UART_TX_ISR(void){
-    if(TX_buffer.num_bytes > 0){
+__interrupt void UART_TX_ISR(void) {
+    if ( TX_buffer.num_bytes > 0 ) {
         UCA0TXBUF = TX_buffer.data_buf[TX_buffer.i_first];
 
-        if(TX_buffer.i_first == (TX_BUFFER_SIZE-1))
+        if ( TX_buffer.i_first == (TX_BUFFER_SIZE-1) )
             TX_buffer.i_first = 0;
         else
             TX_buffer.i_first++;
 
-        if(--TX_buffer.num_bytes == 0)
+        if ( --TX_buffer.num_bytes == 0 )
             IE2 &= ~UCA0TXIE;
     }
 }
 
+/** \brief UART RX INTERRUPT SERVICE ROUTINE
+ *
+ * It is basically an FSM.
+ *  1. wait for 0x55 start flag then start timeout.
+ *  2. save packet type
+ *  3. get the size of packet
+ *  4. get data bytes according to size byte
+ *  5. get CRC MSB
+ *  6. get CRC LSB
+ */
 #pragma vector=USCIAB0RX_VECTOR
-__interrupt void UART_RX_ISR(void){
-    if(!RX_is_packet){
-        switch (RX_state) {
+__interrupt void UART_RX_ISR(void) {
+    if ( !RX_is_packet ) {
+        switch ( RX_state ) {
             case GET_START:
-                if(UCA0RXBUF == 0x55){
+                if ( UCA0RXBUF == 0x55 ) {
                     RX_data_cnt = 0;
                     RX_state++;
                     UART_RESET_TIMEOUT();
@@ -211,7 +223,7 @@ __interrupt void UART_RX_ISR(void){
                 break;
             case GET_SIZE:
                 RX_packet.data_size = UCA0RXBUF;
-                if(!RX_packet.data_size)
+                if ( !RX_packet.data_size )
                     RX_state = GET_CRC_0;
                 else
                     RX_state++;
@@ -228,9 +240,9 @@ __interrupt void UART_RX_ISR(void){
                 uart_timeout_ticking = 0;
                 break;
             case GET_DATA:
-                if(RX_data_cnt < RX_packet.data_size){
+                if ( RX_data_cnt < RX_packet.data_size ) {
                     RX_packet.data[RX_data_cnt++] = UCA0RXBUF;
-                }else{
+                } else {
                     RX_data_cnt = 0;
                     RX_state = GET_CRC_0;
                 }
@@ -244,3 +256,9 @@ __interrupt void UART_RX_ISR(void){
     // todo busy message to send
 }
 
+/* todo Read this!
+ *
+ * TX interrupt routine ne egy fix tömbbõl küldözgessen byte-okat, hanem a választott memória címrõl.
+ * Tehát a TX_buffer.databuf helyett pointer legyen, amely mutathat a bufferra, vagy a flash memóriába, lehetõvé téve így a flash tartalom
+ * könnyû küldözgetését.
+ */

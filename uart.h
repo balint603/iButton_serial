@@ -1,4 +1,4 @@
-/*
+/**
  * uart.h
  *
  *  Created on: 2018. szept. 29.

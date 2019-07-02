@@ -1,4 +1,4 @@
-/*
+/**
  * flash.h
  *
  *  Created on: 2018. nov. 7.
