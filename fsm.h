@@ -50,27 +50,9 @@
 #define OPENING_TIME_J_B 10   /* ms/2 */
 
 /** Door opening modes */
-#define MODE_NORMAL 0xFFFF
-#define MODE_BISTABLE 0xAAAA
+#define MODE_NORMAL         0xFFFF
+#define MODE_BISTABLE       0xAAAA
 #define MODE_BISTABLE_SAME_K 0x5555
-
-typedef enum inputs {
-    key_touched,
-    master_key_touched,
-    button_pressed,
-    key_away,
-    timeout,
-    relay_timeout
-} inputs_t;
-
-/** Pointer to the actual state. */
-typedef void ( *p_state_handler )(inputs_t input);
-
-typedef struct fsm{
-    inputs_t input;
-    p_state_handler current_state;
-    uint8_t input_to_serve;
-} ibutton_fsm_t;
 
 /** PUBLIC functions */
 uint8_t ibutton_fsm_is_input();
@@ -79,7 +61,6 @@ uint8_t ibutton_fsm_is_packet();
 void ibutton_fsm_init();
 void ibutton_fsm_change_state();
 void ibutton_read();
-void ibutton_fsm_put_input(inputs_t input);
 void ibutton_user_info_mode_service();
 void ibutton_timeout_service();
 void ibutton_process_command();

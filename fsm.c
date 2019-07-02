@@ -47,6 +47,25 @@ typedef struct iButton_key_data{
     volatile uint8_t reader_enable_flag;
 } iButton_key_data_t;
 
+/** Input types of state machine. */
+typedef enum inputs {
+    key_touched,
+    master_key_touched,
+    button_pressed,
+    key_away,
+    timeout,
+    relay_timeout
+} inputs_t;
+
+/** Pointer to the actual state. */
+typedef void ( *p_state_handler )(inputs_t input);
+
+typedef struct fsm{
+    inputs_t input;
+    p_state_handler current_state;
+    uint8_t input_to_serve;
+} ibutton_fsm_t;
+
 /** \brief Constant pointers initialization.
  *  These pointers are references to flash memory places. At these flash memory places, settings can be find.
  */
