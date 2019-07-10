@@ -57,7 +57,7 @@ void uart_timeout() {
 /** \brief CRC16 generator.
  *
  * */
-static void crc_do(uint8_t *data, int length, uint16_t *crc) {
+void crc_do(uint8_t *data, int length, uint16_t *crc) {
     uint8_t i;
     while ( length-- ) {
         (*crc) ^= *(uint8_t *)data++ << 8;
@@ -145,9 +145,9 @@ int uart_send_packet(uint8_t *data, uint8_t type, uint8_t data_size) {
  * \param *flash_ptr starting address
  * todo test it
  */
-void uart_send_flash_segment(uint8_t *segm_start_ptr, uint8_t segm_ID) {
+void uart_send_flash_segment(uint8_t *segm_start_ptr) {
     uint16_t k;
-    uint8_t type_arr[] = {TYPE_SEND_DATA_CODES, segm_ID};
+    uint8_t type_arr[] = {TYPE_GET_FLASHSEGM_RE, 512};
     uint16_t crc_val[2];
     crc_val[0] = 0xFFFF;
 
@@ -165,7 +165,7 @@ void uart_send_flash_segment(uint8_t *segm_start_ptr, uint8_t segm_ID) {
         crc_do(&type_arr[k], 1, &crc_val[0]);
     }
 
-    for ( k = 256; k > 0; k-- ) {
+    for ( k = 512; k > 0; k-- ) {
         while(!(IFG2 & UCA0TXIFG))
             ;
         UCA0TXBUF = *(segm_start_ptr);

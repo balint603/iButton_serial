@@ -23,12 +23,15 @@
 /*________________________________ END SETTINGS __________________________________ */
 
 /** UART command types */
-enum UART_cmd_type{TYPE_ECHO = 1, TYPE_INFO, TYPE_TEST, TYPE_SEND_SETTINGS,
-    TYPE_SEND_DATA_CODES, TYPE_SAVE_SETTINGS, TYPE_SAVE_DATA_CODES, TYPE_WRITE_A_KEY, TYPE_OK};
+enum UART_cmd_type{TYPE_ECHO = 1, TYPE_INFO, TYPE_TEST,
+                   TYPE_GET_SETTINGS, TYPE_GET_FLASHSEGM,
+                   TYPE_GET_SETTINGS_RE, TYPE_GET_FLASHSEGM_RE, TYPE_WRITE_SETTINGS, TYPE_WRITE_FLASHSEGM, TYPE_WRITE_A_KEY,
+                   TYPE_WRITE_OK, TYPE_ERROR};
 
 /** UART error codes, defined TYPE_INFO data values. */
 #define ERR_TIMEOUT     69
 #define ERR_CRC         2
+#define ERR_SIZE        3
 
 /** UART RX packet */
 typedef struct Packet {
@@ -40,8 +43,9 @@ typedef struct Packet {
 
 void uart_init();
 int uart_send_packet(uint8_t *data, uint8_t type, uint8_t data_size);
-void uart_send_flash_segment(uint8_t *segm_start_ptr, uint8_t segm_ID);
+void uart_send_flash_segment(uint8_t *segm_start_ptr);
 void uart_timeout();
+void crc_do(uint8_t *data, int length, uint16_t *crc);
 
 /** Declare these variables. */
 volatile extern uint8_t RX_is_packet;

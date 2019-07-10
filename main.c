@@ -66,9 +66,6 @@ int main(void)
 	__delay_cycles(120000);
     __enable_interrupt();
 
-    uint8_t *flash_ptr = (uint8_t*)0xE600;
-    //uart_send_flash_data(flash_ptr);
-
 	while ( 1 ) {
 	    if ( ibutton_fsm_is_input() ){
 	        ibutton_fsm_change_state();

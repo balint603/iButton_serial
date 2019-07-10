@@ -373,13 +373,38 @@ void ibutton_user_info_mode_service(){
 /** Send settings via UART. */
 void send_settings_data(){
     uint8_t *data = (uint8_t*)(FLASH_MASTER_CODE + SETTINGS_START);
-    uart_send_packet(data, TYPE_SEND_SETTINGS, 12);
+    uart_send_packet(data, TYPE_GET_SETTINGS_RE, 12);
+}
+
+/**
+ * Process the TYPE_GET_FLASHSEGM command.
+ * */
+static void process_get_segment(packet_t *RX_packet) {
+    uint8_t *flash_ptr = (uint8_t*)RX_packet->data[1];    // First word is the starting address
+    flash_ptr = (uint8_t*)(data[0]);
+
+    uart_send_flash_segment(flash_ptr);
+}
+
+static void send_err_packet(uint8_t data) {
+    uart_send_packet(&data, TYPE_ERROR, 1);
 }
 
 /** \brief Processing incoming UART commands.
  * See defined commands.
  * */
 void ibutton_process_command() {
+    if ( RX_packet.data_size > RX_DATA_SIZE ) {
+        send_err_packet(ERR_SIZE);
+        return;
+    }
+
+    uint16_t crc_val = 0xFFFF;
+    crc_do(RX_packet.type_b, 1, &crc_val);
+    crc_do(RX_packet.data, RX_packet.data_size, &crc_val);
+    if ( crc_val != RX_packet.crc ) {
+        send_err_packet(ERR_CRC);
+    }
     switch ( RX_packet.type_b ) {
         case TYPE_ECHO:
             if ( !uart_send_packet(RX_packet.data, RX_packet.type_b, RX_packet.data_size) )
@@ -389,12 +414,16 @@ void ibutton_process_command() {
         case TYPE_TEST:
             PUT_INPUT(button_pressed);
             break;
-        case TYPE_SEND_SETTINGS:
-
+        case TYPE_GET_SETTINGS:
             send_settings_data();
             break;
         case TYPE_WRITE_A_KEY:
             delete_or_add_key((uint16_t*)RX_packet.data);
+            break;
+        case TYPE_GET_FLASHSEGM:
+            if ( RX_packet.data_size != 2 )
+                send_err_packet(ERR_SIZE);
+            process_get_segment(&RX_packet);
             break;
         default:
 
