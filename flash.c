@@ -108,7 +108,7 @@ int flash_write_word(uint16_t word, uint16_t address) {
 }
 
 /** \brief Flash block writer.
- * Save max 128 words to flash memory  32 words. Check the write address range.
+ * Save max 128 words to flash memory, writing 32 words wide blocks. Check the write address range.
  * The first block border must be find to synchronize the writing because one block can be written at the same time. This is why do-while needed.
  * It does not check the memory data after write process.
  * \param data Ptr to words.

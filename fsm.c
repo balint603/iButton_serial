@@ -120,7 +120,7 @@ volatile uint8_t piezo_ticking;
 /** UART MODULE. */
 volatile uint8_t RX_is_packet;
 volatile uint8_t TX_is_packet;
-volatile Packet_t RX_packet;
+volatile packet_t RX_packet;
 
 /** iButton reader flags, counters. */
 ibutton_fsm_t ibutton_fsm;
@@ -283,7 +283,8 @@ void ibutton_fsm_init(){
         TIMEOUT(INFO_LONG);
     }else{
         make_sound(0, INFO_SHORT);
-        LED_TURN_OFF_RE;
+        LED_TURN_ON_RE;
+        LED_TURN_OFF_GR;
     }
 
 }
@@ -447,8 +448,8 @@ static void shorted_reader(inputs_t input) {
         }
         else {
             ibutton_fsm.current_state = check_touch;
-            LED_TURN_ON_GR;
-            LED_TURN_OFF_RE;
+            LED_TURN_ON_RE;
+            LED_TURN_OFF_GR;
             user_info_mode = INFO_NONE;
         }
     }
@@ -466,7 +467,7 @@ static void access_allow_bistable(inputs_t input) {
     case key_touched:
         if( (flash_search_key(iButton_data.key_code, &addr)) ) {
             //uart_send_str("RELAY=OFF", 1);
-            LED_TURN_ON_GR;
+            LED_TURN_ON_RE;
             make_sound(1,INFO_SHORT);
             REL_OFF;
             ibutton_fsm.current_state = check_touch;
@@ -490,7 +491,7 @@ static void access_allow_bistable_same_key(inputs_t input) {
     case key_touched:
         if( !compare_key(iButton_data.prev_key_code, iButton_data.key_code) ) {
             //uart_send_str("RELAY=OFF", 1);
-            LED_TURN_ON_GR;
+            LED_TURN_ON_RE;
             make_sound(1,INFO_SHORT);
             REL_OFF;
             ibutton_fsm.current_state = check_touch;
@@ -508,15 +509,14 @@ static void access_allow_bistable_same_key(inputs_t input) {
  * Gate is opened for a time.
  */
 static void access_allow(inputs_t input) {
-    LED_TURN_OFF_GR;
     REL_ON;
     if( !timeout_ticking ) {
         if( !(--iButton_data.opening_time) ) {
            // uart_send_str("RELAY=OFF", 1);
             SEND_USER_INFO(INFO_NONE,0,INFO_SHORT);
-            LED_TURN_ON_GR;
+            LED_TURN_ON_RE;
+            LED_TURN_OFF_GR;
             // test uart
-
             //uart_send((uint8_t*)iButton_data.key_code, 1, 6);
             REL_OFF;
             ibutton_fsm.current_state = check_touch;
@@ -538,8 +538,8 @@ static void access_denied(inputs_t input) {
         TIMEOUT(2000);
         break;
     case timeout:
-        LED_TURN_ON_GR;
-        LED_TURN_OFF_RE;
+        LED_TURN_ON_RE;
+        LED_TURN_OFF_GR;
         ibutton_fsm.current_state = check_touch;
         break;
     case button_pressed:
@@ -568,8 +568,8 @@ static void fast_add_mode(inputs_t input) {
     uint16_t *flash_ptr;
     switch (input) {
         case timeout:
-            LED_TURN_ON_GR;
-            LED_TURN_OFF_RE;
+            LED_TURN_ON_RE;
+            LED_TURN_OFF_GR;
             SEND_USER_INFO(INFO_NONE,1,INFO_LONG);
             //uart_send_str("Normal mode>", 1);
             ibutton_fsm.current_state = check_touch;
@@ -595,8 +595,8 @@ static void fast_add_mode(inputs_t input) {
             break;
         case master_key_touched:
             user_info_ms = 1000;
-            LED_TURN_ON_GR;
-            LED_TURN_OFF_RE;
+            LED_TURN_ON_RE;
+            LED_TURN_OFF_GR;
             //uart_send_str("Normal mode>", 1);
             SEND_USER_INFO(INFO_NONE,0,INFO_SHORT);
             ibutton_fsm.current_state = check_touch;
@@ -647,14 +647,14 @@ static void add_master_key(inputs_t input) {
 static void master_delete(inputs_t input) {
     switch (input) {
         case timeout:
-            LED_TURN_OFF_RE;
-            LED_TURN_ON_GR;
+            LED_TURN_ON_RE;
+            LED_TURN_OFF_GR;
             SEND_USER_INFO(INFO_NONE,1,INFO_LONG);
             ibutton_fsm.current_state = check_touch;
             break;
         case master_key_touched:
             make_sound(1, 1000);
-            LED_TURN_OFF_GR;
+            LED_TURN_ON_GR;
             LED_TURN_ON_RE;
             segment_erase(0);   // All segment erase!
             flash_init();
@@ -680,23 +680,24 @@ static void master_mode(inputs_t input) {
     switch (input) {
     case timeout:
         //uart_send_str("Normal mode>", 1);
-        LED_TURN_ON_GR;
+        LED_TURN_ON_RE;
+        LED_TURN_OFF_GR;
         SEND_USER_INFO(INFO_NONE,1,INFO_LONG);
         user_info_ms = 1000;
         ibutton_fsm.current_state = check_touch;
         break;
     case master_key_touched:
         //uart_send_str("Erase key code data?", 1);
-        LED_TURN_OFF_RE;
-        LED_TURN_ON_GR;
+        LED_TURN_OFF_GR;
+        LED_TURN_ON_RE;
         SEND_USER_INFO(INFO_BOTH,0,INFO_SHORT);
         TIMEOUT(6000);
         ibutton_fsm.current_state = master_delete;
         break;
     case key_touched:
         delete_or_add_key(iButton_data.key_code);
-        LED_TURN_ON_GR;
-        LED_TURN_OFF_RE;
+        LED_TURN_ON_RE;
+        LED_TURN_OFF_GR;
         ibutton_fsm.current_state = check_touch;
         break;
     }
@@ -717,8 +718,8 @@ static void check_touch(inputs_t input) {
         if (GPIO_GET_INPUT(JUMPER_M_PORT,JUMPER_M_PIN)) {         // Master enable jumper off
             //uart_send_str("Master mode#", 1);
             TIMEOUT(60000);
-            SEND_USER_INFO(INFO_ONLY_GREEN,0,INFO_SHORT);
-            LED_TURN_OFF_GR;
+            SEND_USER_INFO(INFO_ONLY_RED,0,INFO_SHORT);
+            LED_TURN_OFF_RE;
             ibutton_fsm.current_state = master_mode;
         }
         else {
@@ -740,7 +741,8 @@ static void check_touch(inputs_t input) {
                     TIMEOUT(1000);
                     break;
             }
-            LED_TURN_OFF_GR;
+            LED_TURN_OFF_RE;
+            LED_TURN_ON_GR;
         }
         break;
     case key_touched:
@@ -762,11 +764,12 @@ static void check_touch(inputs_t input) {
                     TIMEOUT(1000);
                     break;
             }
-            LED_TURN_OFF_GR;
+            LED_TURN_ON_GR;
+            LED_TURN_OFF_RE;
         }
         else {
             //uart_send_str("ACCESS DENIED!",1);
-            LED_TURN_OFF_GR;
+            LED_TURN_ON_GR;
             LED_TURN_ON_RE;
             SEND_USER_INFO(INFO_3_BEEPS,0,INFO_SHORT);
             ibutton_fsm.current_state = access_denied;
@@ -777,11 +780,12 @@ static void check_touch(inputs_t input) {
             //uart_send_str("RELAY=ON", 1);
             REL_ON;
             make_sound(1, INFO_SHORT);
+            LED_TURN_ON_GR;
             LED_TURN_OFF_RE;
             ibutton_fsm.current_state = access_allow;
             refresh_timing();
             TIMEOUT(1000);
-            LED_TURN_OFF_GR;
+
         }
         break;
     }

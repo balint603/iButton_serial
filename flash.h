@@ -18,7 +18,7 @@
 #define FLASH_TIME            (3)   // Words
 #define FLASH_MODE            (4)   // Words
 #define FLASH_ENABLE_BUTTON   (5)   // Words
-#define SETTINGS_RANGE 6 // Words
+#define SETTINGS_RANGE         6 // Words
 
 #define WATCHDOG_CONTINUE (WDTCTL = WDTPW)           // counting
 #define WATCHDOG_STOP (WDTCTL = WDTPW | WDTHOLD)      // stop watchdog timer

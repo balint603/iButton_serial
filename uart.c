@@ -16,11 +16,12 @@
 #include "flash.h"
 
 
-/** UART states */
+/** UART receiver states */
 typedef enum UART_state{GET_START,GET_TYPE,GET_SIZE,GET_DATA,GET_CRC_1,GET_CRC_0} state_t;
 
 /** UART RX buffer type */
 
+/** ISR state register */
 volatile state_t RX_state = GET_START;
 uint8_t RX_data_cnt;
 
@@ -48,13 +49,13 @@ static void crc_do(uint8_t *data, int length, uint16_t *crc);
 
 
 void uart_timeout() {
-    uint8_t data = 69;
+    uint8_t data = ERR_TIMEOUT;
     RX_state = GET_START;
     uart_send_packet(&data, TYPE_INFO, 1);
 }
 
 /** \brief CRC16 generator.
- * \param crc_init null, from 0x0000
+ *
  * */
 static void crc_do(uint8_t *data, int length, uint16_t *crc) {
     uint8_t i;
@@ -124,7 +125,7 @@ int uart_send_packet(uint8_t *data, uint8_t type, uint8_t data_size) {
     crc_value_msb = crc_value;
     crc_value_msb >>= 8;
 
-    uart_send_byte(0x55);
+    uart_send_byte(START_BYTE);
     uart_send_byte(type);
     uart_send_byte(data_size);
     while ( data_size-- )
@@ -137,43 +138,44 @@ int uart_send_packet(uint8_t *data, uint8_t type, uint8_t data_size) {
     return 0;
 }
 
-/** \brief
- * Stream out 256byte content of memory.
+/** \brief Flash memory data sender.
+ * Stream out 512 bytes content of memory.
+ * Packet size now stores segm_ID value.
+ * This functions blocks the running of the other program modules.
  * \param *flash_ptr starting address
- * NOT USED
+ * todo test it
  */
-void uart_send_flash_data(uint8_t *flash_ptr){
+void uart_send_flash_segment(uint8_t *segm_start_ptr, uint8_t segm_ID) {
     uint16_t k;
-    uint8_t type_arr[] = {TYPE_SEND_DATA_CODES, 0};
+    uint8_t type_arr[] = {TYPE_SEND_DATA_CODES, segm_ID};
     uint16_t crc_val[2];
     crc_val[0] = 0xFFFF;
 
     WATCHDOG_STOP;
-    while ( TX_buffer.num_bytes ) // TODO wtf is this
+    while ( TX_buffer.num_bytes ) // Check current transmission
         ;
-
-    while(!(IFG2 & UCA0TXIFG))
+    while ( !(IFG2 & UCA0TXIFG) )
         ;
-    UCA0TXBUF = 0x55;
+    UCA0TXBUF = START_BYTE;
 
-    for(k = 0; k < 2; k++){
-        while(!(IFG2 & UCA0TXIFG))
+    for ( k = 0; k < 2; k++ ) {
+        while ( !(IFG2 & UCA0TXIFG) )
             ;
         UCA0TXBUF = type_arr[k];
         crc_do(&type_arr[k], 1, &crc_val[0]);
     }
 
-    for(k = 256; k > 0; k--){
+    for ( k = 256; k > 0; k-- ) {
         while(!(IFG2 & UCA0TXIFG))
             ;
-        UCA0TXBUF = *(flash_ptr);
-        crc_do(flash_ptr++, 1, &crc_val[0]);
+        UCA0TXBUF = *(segm_start_ptr);
+        crc_do(segm_start_ptr++, 1, &crc_val[0]);
     }
 
     crc_val[1] = crc_val[0];
     crc_val[1] >>= 8;
-    for(k = 2; k > 0; ){
-        while(!(IFG2 & UCA0TXIFG))
+    for ( k = 2; k > 0; ) {
+        while ( !(IFG2 & UCA0TXIFG) )
             ;
         UCA0TXBUF = (uint8_t)crc_val[--k];
     }
@@ -198,7 +200,7 @@ __interrupt void UART_TX_ISR(void) {
 /** \brief UART RX INTERRUPT SERVICE ROUTINE
  *
  * It is basically an FSM.
- *  1. wait for 0x55 start flag then start timeout.
+ *  1. wait for START_BYTE start flag then start timeout.
  *  2. save packet type
  *  3. get the size of packet
  *  4. get data bytes according to size byte
@@ -210,7 +212,7 @@ __interrupt void UART_RX_ISR(void) {
     if ( !RX_is_packet ) {
         switch ( RX_state ) {
             case GET_START:
-                if ( UCA0RXBUF == 0x55 ) {
+                if ( UCA0RXBUF == START_BYTE ) {
                     RX_data_cnt = 0;
                     RX_state++;
                     UART_RESET_TIMEOUT();
@@ -256,7 +258,7 @@ __interrupt void UART_RX_ISR(void) {
     // todo busy message to send
 }
 
-/* todo Read this!
+/* todo TX plan
  *
  * TX interrupt routine ne egy fix tömbbõl küldözgessen byte-okat, hanem a választott memória címrõl.
  * Tehát a TX_buffer.databuf helyett pointer legyen, amely mutathat a bufferra, vagy a flash memóriába, lehetõvé téve így a flash tartalom
