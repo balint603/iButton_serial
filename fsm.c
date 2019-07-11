@@ -376,18 +376,41 @@ void send_settings_data(){
     uart_send_packet(data, TYPE_GET_SETTINGS_RE, 12);
 }
 
-/**
- * Process the TYPE_GET_FLASHSEGM command.
- * */
-static void process_get_segment(packet_t *RX_packet) {
-    uint8_t *flash_ptr = (uint8_t*)RX_packet->data[1];    // First word is the starting address
-    flash_ptr = (uint8_t*)(data[0]);
-
-    uart_send_flash_segment(flash_ptr);
-}
-
 static void send_err_packet(uint8_t data) {
     uart_send_packet(&data, TYPE_ERROR, 1);
+}
+
+/** \brief Procedure to make pointer from a two byte large address array. LSB first!. */
+uint8_t *make_address(uint8_t addr_arr[]) {
+    uint16_t temp_addr;
+
+    temp_addr = (uint16_t)(addr_arr[1]);  // Get request data is an address
+    temp_addr <<= 8;
+    temp_addr |= (uint16_t)(addr_arr[0]);
+    return (uint8_t*)temp_addr;
+}
+
+/**
+ * Process the TYPE_GET_FLASHSEGM command.
+ * First, make address from data.
+ * */
+static void process_get_segment(packet_t *RX_packet) {
+    uint8_t *flash_ptr = make_address(RX_packet->data);
+    if ( (uint8_t*)SEGMENT_0 <= flash_ptr && flash_ptr <= (uint8_t*)(SEGMENT_8 + 512) )
+        uart_send_flash_segment(flash_ptr);
+    else
+        send_err_packet(ERR_RANGE);
+}
+
+/**
+ * Process the TYPE_WRITE_FLASHSEGM command.
+ */
+void process_write_to_flash(packet_t *RX_packet) {
+    uint8_t *flash_ptr = make_address(RX_packet->data);
+    if ( (uint8_t*)SEGMENT_0 <= flash_ptr && flash_ptr <= (uint8_t*)(SEGMENT_8 + 512) )
+        // todo flash write data
+    else
+        send_err_packet(ERR_RANGE);
 }
 
 /** \brief Processing incoming UART commands.
@@ -402,10 +425,10 @@ void ibutton_process_command() {
     uint16_t crc_val = 0xFFFF;
     crc_do(RX_packet.type_b, 1, &crc_val);
     crc_do(RX_packet.data, RX_packet.data_size, &crc_val);
-    if ( crc_val != RX_packet.crc ) {
+    if ( crc_val != RX_packet.crc ) {               // CRC check
         send_err_packet(ERR_CRC);
     }
-    switch ( RX_packet.type_b ) {
+    switch ( RX_packet.type_b ) {                   // TYPE selector
         case TYPE_ECHO:
             if ( !uart_send_packet(RX_packet.data, RX_packet.type_b, RX_packet.data_size) )
                 ;
@@ -417,13 +440,21 @@ void ibutton_process_command() {
         case TYPE_GET_SETTINGS:
             send_settings_data();
             break;
+        case TYPE_ERASE_ALL:
+            segment_erase(0);
+            uart_send_packet(0, TYPE_ERASE_ALL_RE, 1);
+            break;
         case TYPE_WRITE_A_KEY:
             delete_or_add_key((uint16_t*)RX_packet.data);
             break;
         case TYPE_GET_FLASHSEGM:
-            if ( RX_packet.data_size != 2 )
+            if ( RX_packet.data_size == 2 )
+                process_get_segment(&RX_packet);
+            else
                 send_err_packet(ERR_SIZE);
-            process_get_segment(&RX_packet);
+            break;
+        case TYPE_WRITE_FLASHSEGM:
+            process_write_to_flash(&RX_packet);
             break;
         default:
 

@@ -17,7 +17,7 @@
 
 
 /** UART receiver states */
-typedef enum UART_state{GET_START,GET_TYPE,GET_SIZE,GET_DATA,GET_CRC_1,GET_CRC_0} state_t;
+typedef enum UART_state{GET_START,GET_TYPE,GET_SIZE,GET_DATA,GET_CRC_0,GET_CRC_1} state_t;
 
 /** UART RX buffer type */
 
@@ -43,7 +43,6 @@ uint8_t TX_buffer[56];
 
 
 int uart_send(uint8_t *data, uint8_t type, uint8_t data_size);
-static void crc_do(uint8_t *data, int length, uint16_t *crc);
 
 #define UART_RESET_TIMEOUT() {uart_timeout_ticking = 1; uart_timeot_ms = UART_TIMEOUT_MS;}
 
@@ -140,6 +139,7 @@ int uart_send_packet(uint8_t *data, uint8_t type, uint8_t data_size) {
 
 /** \brief Flash memory data sender.
  * Stream out 512 bytes content of memory.
+ * Size field contains fully 1 (255).
  * Packet size now stores segm_ID value.
  * This functions blocks the running of the other program modules.
  * \param *flash_ptr starting address
@@ -147,9 +147,9 @@ int uart_send_packet(uint8_t *data, uint8_t type, uint8_t data_size) {
  */
 void uart_send_flash_segment(uint8_t *segm_start_ptr) {
     uint16_t k;
-    uint8_t type_arr[] = {TYPE_GET_FLASHSEGM_RE, 512};
-    uint16_t crc_val[2];
-    crc_val[0] = 0xFFFF;
+    uint8_t type_arr[] = {TYPE_GET_FLASHSEGM_RE, SIZE_FIELD_MAXVAL};
+    uint16_t crc_temp = 0xFFFF;
+    uint8_t crc_MSB;
 
     WATCHDOG_STOP;
     while ( TX_buffer.num_bytes ) // Check current transmission
@@ -157,28 +157,26 @@ void uart_send_flash_segment(uint8_t *segm_start_ptr) {
     while ( !(IFG2 & UCA0TXIFG) )
         ;
     UCA0TXBUF = START_BYTE;
-
     for ( k = 0; k < 2; k++ ) {
         while ( !(IFG2 & UCA0TXIFG) )
             ;
         UCA0TXBUF = type_arr[k];
-        crc_do(&type_arr[k], 1, &crc_val[0]);
+        crc_do(&type_arr[k], 1, &crc_temp);
     }
 
     for ( k = 512; k > 0; k-- ) {
         while(!(IFG2 & UCA0TXIFG))
             ;
         UCA0TXBUF = *(segm_start_ptr);
-        crc_do(segm_start_ptr++, 1, &crc_val[0]);
+        crc_do(segm_start_ptr++, 1, &crc_temp);
     }
-
-    crc_val[1] = crc_val[0];
-    crc_val[1] >>= 8;
-    for ( k = 2; k > 0; ) {
-        while ( !(IFG2 & UCA0TXIFG) )
+    while ( !(IFG2 & UCA0TXIFG) )
             ;
-        UCA0TXBUF = (uint8_t)crc_val[--k];
-    }
+    UCA0TXBUF = (uint8_t)crc_temp;  //LSB
+    while ( !(IFG2 & UCA0TXIFG) )
+            ;
+    crc_MSB = (uint8_t)(crc_temp >> 8);
+    UCA0TXBUF = (uint8_t)crc_MSB;   //MSB
     WATCHDOG_CONTINUE;
 }
 
@@ -200,12 +198,12 @@ __interrupt void UART_TX_ISR(void) {
 /** \brief UART RX INTERRUPT SERVICE ROUTINE
  *
  * It is basically an FSM.
- *  1. wait for START_BYTE start flag then start timeout.
- *  2. save packet type
- *  3. get the size of packet
- *  4. get data bytes according to size byte
+ *  0. wait for START_BYTE start flag then start timeout.
+ *  1. save packet type
+ *  2. get the size of packet
+ *  3. get data bytes according to size byte
+ *  4. get CRC LSB
  *  5. get CRC MSB
- *  6. get CRC LSB
  */
 #pragma vector=USCIAB0RX_VECTOR
 __interrupt void UART_RX_ISR(void) {
@@ -231,15 +229,15 @@ __interrupt void UART_RX_ISR(void) {
                     RX_state++;
                 // todo check
                 break;
-            case GET_CRC_1:
-                RX_packet.crc = ( ((uint16_t)UCA0RXBUF) << 8 );
-                RX_state++;
-                break;
-            case GET_CRC_0:
-                RX_packet.crc |= (uint16_t)UCA0RXBUF;
+            case GET_CRC_1:             //MSB 1. byte
+                RX_packet.crc |= ( ((uint16_t)UCA0RXBUF) << 8 );
                 RX_state = GET_START;
                 RX_is_packet = 1;
                 uart_timeout_ticking = 0;
+                break;
+            case GET_CRC_0:             //LSB 0. byte
+                RX_packet.crc = (uint16_t)UCA0RXBUF;
+                RX_state++;
                 break;
             case GET_DATA:
                 if ( RX_data_cnt < RX_packet.data_size ) {

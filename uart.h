@@ -20,18 +20,20 @@
 #define TX_BUFFER_SIZE 50
 
 #define START_BYTE 0x55
+#define SIZE_FIELD_MAXVAL 255
 /*________________________________ END SETTINGS __________________________________ */
 
 /** UART command types */
 enum UART_cmd_type{TYPE_ECHO = 1, TYPE_INFO, TYPE_TEST,
-                   TYPE_GET_SETTINGS, TYPE_GET_FLASHSEGM,
-                   TYPE_GET_SETTINGS_RE, TYPE_GET_FLASHSEGM_RE, TYPE_WRITE_SETTINGS, TYPE_WRITE_FLASHSEGM, TYPE_WRITE_A_KEY,
+                   TYPE_GET_SETTINGS, TYPE_GET_FLASHSEGM, TYPE_ERASE_ALL,
+                   TYPE_GET_SETTINGS_RE, TYPE_GET_FLASHSEGM_RE, TYPE_WRITE_SETTINGS, TYPE_WRITE_FLASHSEGM, TYPE_WRITE_A_KEY, TYPE_ERASE_ALL_RE,
                    TYPE_WRITE_OK, TYPE_ERROR};
 
 /** UART error codes, defined TYPE_INFO data values. */
 #define ERR_TIMEOUT     69
 #define ERR_CRC         2
 #define ERR_SIZE        3
+#define ERR_RANGE       4
 
 /** UART RX packet */
 typedef struct Packet {
