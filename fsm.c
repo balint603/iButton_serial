@@ -377,7 +377,7 @@ void send_settings_data(){
 }
 
 static void send_err_packet(uint8_t data) {
-    uart_send_packet(&data, TYPE_ERROR, 1);
+    uart_send_packet(&data, TYPE_INFO, 1);
 }
 
 /** \brief Procedure to make pointer from a two byte large address array. LSB first!. */
@@ -406,11 +406,11 @@ static void process_get_segment(packet_t *RX_packet) {
  * Process the TYPE_WRITE_FLASHSEGM command.
  */
 void process_write_to_flash(packet_t *RX_packet) {
-    uint8_t *flash_ptr = make_address(RX_packet->data);
-    if ( (uint8_t*)SEGMENT_0 <= flash_ptr && flash_ptr <= (uint8_t*)(SEGMENT_8 + 512) )
-        // todo flash write data
+    uint8_t *flash_ptr = make_address(RX_packet->data); // TODO RESPONSE
+    /*if ( (uint8_t*)SEGMENT_0 <= flash_ptr && flash_ptr <= (uint8_t*)(SEGMENT_8 + 512) )
+        //flash_write_data(data, size, address)   // TODO response
     else
-        send_err_packet(ERR_RANGE);
+        send_err_packet(ERR_RANGE);*/
 }
 
 /** \brief Processing incoming UART commands.
@@ -423,7 +423,10 @@ void ibutton_process_command() {
     }
 
     uint16_t crc_val = 0xFFFF;
-    crc_do(RX_packet.type_b, 1, &crc_val);
+    uint8_t preamble[2];
+    preamble[0] = RX_packet.type_b;
+    preamble[1] = RX_packet.data_size;
+    crc_do(preamble, 2, &crc_val);
     crc_do(RX_packet.data, RX_packet.data_size, &crc_val);
     if ( crc_val != RX_packet.crc ) {               // CRC check
         send_err_packet(ERR_CRC);

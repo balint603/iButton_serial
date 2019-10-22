@@ -60,8 +60,8 @@ int main(void)
     ibutton_init();
     ibutton_fsm_init();
     flash_init();
-
-	//uart_send_str("System Start", 1);
+    uint8_t data = 95;
+	uart_send_packet(&data, TYPE_INFO, 1);
 	WATCHDOG_RESET;
 	__delay_cycles(120000);
     __enable_interrupt();

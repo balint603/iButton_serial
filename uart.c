@@ -237,11 +237,15 @@ __interrupt void UART_RX_ISR(void) {
                 break;
             case GET_CRC_0:             //LSB 0. byte
                 RX_packet.crc = (uint16_t)UCA0RXBUF;
-                RX_state++;
+                RX_state = GET_CRC_1;
                 break;
             case GET_DATA:
                 if ( RX_data_cnt < RX_packet.data_size ) {
                     RX_packet.data[RX_data_cnt++] = UCA0RXBUF;
+                    if ( RX_data_cnt >= RX_packet.data_size ) {
+                        RX_data_cnt = 0;
+                        RX_state = GET_CRC_0;
+                    }
                 } else {
                     RX_data_cnt = 0;
                     RX_state = GET_CRC_0;
