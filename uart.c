@@ -229,15 +229,16 @@ __interrupt void UART_RX_ISR(void) {
                     RX_state++;
                 // todo check
                 break;
-            case GET_CRC_1:             //MSB 1. byte
-                RX_packet.crc |= ( ((uint16_t)UCA0RXBUF) << 8 );
+            case GET_CRC_0:             //MSB
+                RX_packet.crc = (uint16_t)UCA0RXBUF;
+                RX_packet.crc <<= 8;
+                RX_state = GET_CRC_1;
+                break;
+            case GET_CRC_1:             //LSB
+                RX_packet.crc |= ((uint16_t)UCA0RXBUF);
                 RX_state = GET_START;
                 RX_is_packet = 1;
                 uart_timeout_ticking = 0;
-                break;
-            case GET_CRC_0:             //LSB 0. byte
-                RX_packet.crc = (uint16_t)UCA0RXBUF;
-                RX_state = GET_CRC_1;
                 break;
             case GET_DATA:
                 if ( RX_data_cnt < RX_packet.data_size ) {
