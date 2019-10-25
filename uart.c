@@ -172,11 +172,12 @@ void uart_send_flash_segment(uint8_t *segm_start_ptr) {
     }
     while ( !(IFG2 & UCA0TXIFG) )
             ;
-    UCA0TXBUF = (uint8_t)crc_temp;  //LSB
-    while ( !(IFG2 & UCA0TXIFG) )
-            ;
     crc_MSB = (uint8_t)(crc_temp >> 8);
     UCA0TXBUF = (uint8_t)crc_MSB;   //MSB
+
+    while ( !(IFG2 & UCA0TXIFG) )
+            ;
+    UCA0TXBUF = (uint8_t)crc_temp;  //LSB
     WATCHDOG_CONTINUE;
 }
 
