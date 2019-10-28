@@ -216,10 +216,27 @@ static void delete_or_add_key(uint16_t *key_code){
         }
     }
 }
+
+/** Copy the content of a word array to a byte array and change order.
+ *  \param wordarr pointer to a word array size: n_words.
+ *  \param bytearr pointer to a byte array size: n_words * 2.
+ *  \param n_words size of arrays in words.
+ * */
+void copy_wordarr_to_bytearr(uint16_t *wordarr, uint8_t *bytearr, uint8_t n_words) {
+    if ( !(wordarr && bytearr) )
+        return;
+    while ( n_words-- ) {
+        *(bytearr++) = (uint8_t) (*(wordarr));
+        *(bytearr++) = (uint8_t) (*(wordarr++) >> 8);
+    }
+}
+
 /** STATIC functions end___________________________________________________________________________________ */
 
 
 /** PUBLIC functions_______________________________________________________________________________________ */
+
+
 /** \brief Check if there is an input to serve. */
 uint8_t ibutton_fsm_is_input() {
     return ibutton_fsm.input_to_serve ? 1 : 0;
@@ -288,6 +305,7 @@ void ibutton_fsm_init(){
     }
 
 }
+
 /** \brief iButton reader function to check the touches.
  * When an iButton device is successfully read, reader polling will be stopped for defined time (READ_DISABLE_TIME).
  * Reset the defined at every iButton presence.
@@ -399,7 +417,7 @@ static void process_get_segment(packet_t *RX_packet) {
     if ( (uint8_t*)SEGMENT_0 <= flash_ptr && flash_ptr <= (uint8_t*)(SEGMENT_8 + 512) )
         uart_send_flash_segment(flash_ptr);
     else
-        send_err_packet(ERR_RANGE);
+        send_err_packet(MSG_ERR_RANGE);
 }
 
 /**
@@ -418,7 +436,7 @@ void process_write_to_flash(packet_t *RX_packet) {
  * */
 void ibutton_process_command() {
     if ( RX_packet.data_size > RX_DATA_SIZE ) {
-        send_err_packet(ERR_SIZE);
+        send_err_packet(MSG_ERR_SIZE);
         return;
     }
 
@@ -429,7 +447,7 @@ void ibutton_process_command() {
     crc_do(preamble, 2, &crc_val);
     crc_do(RX_packet.data, RX_packet.data_size, &crc_val);
     if ( crc_val != RX_packet.crc ) {               // CRC check
-        send_err_packet(ERR_CRC);
+        send_err_packet(MSG_ERR_CRC);
     }
     switch ( RX_packet.type_b ) {                   // TYPE selector
         case TYPE_ECHO:
@@ -454,7 +472,7 @@ void ibutton_process_command() {
             if ( RX_packet.data_size == 2 )
                 process_get_segment(&RX_packet);
             else
-                send_err_packet(ERR_SIZE);
+                send_err_packet(MSG_ERR_SIZE);
             break;
         case TYPE_WRITE_FLASHSEGM:
             process_write_to_flash(&RX_packet);
@@ -580,7 +598,7 @@ static void access_allow(inputs_t input) {
             LED_TURN_ON_RE;
             LED_TURN_OFF_GR;
             // test uart
-            //uart_send((uint8_t*)iButton_data.key_code, 1, 6);
+
             REL_OFF;
             ibutton_fsm.current_state = check_touch;
             refresh_timing();
@@ -773,7 +791,8 @@ static void master_mode(inputs_t input) {
 static void check_touch(inputs_t input) {
     ibutton_fsm.input_to_serve = 0;
     uint16_t addr = SEGMENT_0;
-
+    uint8_t msg_type = 0;
+    uint8_t msg_data[7];
     timeout_ms = 0;
 
     switch (ibutton_fsm.input) {
@@ -806,7 +825,9 @@ static void check_touch(inputs_t input) {
             }
             LED_TURN_OFF_RE;
             LED_TURN_ON_GR;
+
         }
+        msg_type = MSG_M_KEY_TOUCHED;
         break;
     case key_touched:
         if ( flash_search_key(iButton_data.key_code, &addr) ) {
@@ -829,6 +850,7 @@ static void check_touch(inputs_t input) {
             }
             LED_TURN_ON_GR;
             LED_TURN_OFF_RE;
+            msg_type = MSG_KEY_TOUCHED;
         }
         else {
             //uart_send_str("ACCESS DENIED!",1);
@@ -836,8 +858,9 @@ static void check_touch(inputs_t input) {
             LED_TURN_ON_RE;
             SEND_USER_INFO(INFO_3_BEEPS,0,INFO_SHORT);
             ibutton_fsm.current_state = access_denied;
+            msg_type = MSG_KEY_TOUCHED_ILL;
         }
-            break;
+        break;
     case button_pressed:
         if ( *iButton_data.mode_ptr == MODE_NORMAL ) {
             //uart_send_str("RELAY=ON", 1);
@@ -850,8 +873,12 @@ static void check_touch(inputs_t input) {
             TIMEOUT(1000);
 
         }
+        msg_type = MSG_OPEN_BUTTON;
         break;
     }
+    msg_data[0] = msg_type;
+    copy_wordarr_to_bytearr(iButton_data.key_code, &msg_data[1], 3);
+    uart_send_packet(msg_data, TYPE_INFO, 7);
 }
 
 /* State functions stop____________________________________________________________________________________ */

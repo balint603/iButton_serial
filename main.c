@@ -60,7 +60,7 @@ int main(void)
     ibutton_init();
     ibutton_fsm_init();
     flash_init();
-    uint8_t data = 95;
+    uint8_t data = MSG_BOOT;
 	uart_send_packet(&data, TYPE_INFO, 1);
 	WATCHDOG_RESET;
 	__delay_cycles(120000);

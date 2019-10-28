@@ -48,7 +48,7 @@ int uart_send(uint8_t *data, uint8_t type, uint8_t data_size);
 
 
 void uart_timeout() {
-    uint8_t data = ERR_TIMEOUT;
+    uint8_t data = MSG_ERR_TIMEOUT;
     RX_state = GET_START;
     uart_send_packet(&data, TYPE_INFO, 1);
 }

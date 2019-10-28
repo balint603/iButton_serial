@@ -30,11 +30,18 @@ enum UART_cmd_type{TYPE_ECHO = 1, TYPE_INFO, TYPE_TEST,
                    TYPE_WRITE_SETTINGS, TYPE_WRITE_FLASHSEGM, TYPE_WRITE_A_KEY, // No response containing data, but error / ok info message
                    };
 
-/** UART error codes, defined TYPE_INFO data values. */
-#define ERR_TIMEOUT     69
-#define ERR_CRC         2
-#define ERR_SIZE        3
-#define ERR_RANGE       4
+/** UART error codes, used in TYPE_INFO, or response commands as data values. */
+#define MSG_ERR_TIMEOUT     0x69
+#define MSG_ERR_CRC         0x02
+#define MSG_ERR_SIZE        0x03
+#define MSG_ERR_RANGE       0x04
+#define MSG_BOOT            0x05
+
+#define MSG_KEY_TOUCHED     0x0A
+#define MSG_KEY_TOUCHED_ILL 0x0B
+#define MSG_M_KEY_TOUCHED   0x0C
+#define MSG_OPEN_BUTTON     0x0D
+
 
 /** UART RX packet */
 typedef struct Packet {
