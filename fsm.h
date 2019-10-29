@@ -65,6 +65,5 @@ void ibutton_user_info_mode_service();
 void ibutton_timeout_service();
 void ibutton_process_command();
 int compare_key(uint16_t *key1, uint16_t *key2);
-void send_info_msg(uint8_t msg_type, uint8_t *data, uint8_t data_len);
 
 #endif /* FSM_H_ */

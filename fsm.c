@@ -389,9 +389,32 @@ void ibutton_user_info_mode_service(){
 }
 
 /** Send settings via UART. */
-void send_settings_data(){
+void send_settings_data() {
     uint8_t *data = (uint8_t*)(FLASH_MASTER_CODE + SETTINGS_START);
-    uart_send_packet(data, TYPE_GET_SETTINGS_RE, 12);
+    uart_send_packet(data, TYPE_GET_SETTINGS_RE, SETTINGS_RANGE * 2);
+}
+
+/** Overwrite settings. */
+void write_settings_data() {
+    uint8_t info_msg;
+    int ret;
+    if ( RX_packet.data_size != SETTINGS_RANGE * 2 ) {
+        info_msg = MSG_ERR_SIZE;
+    } else {
+        ret = flash_change_settings(FLASH_MASTER_CODE, (uint16_t*)RX_packet.data, SETTINGS_RANGE);
+        switch ( ret ) {
+        case -1:
+            info_msg = MSG_ERR_DATA;
+            break;
+        case 1:
+            info_msg = MSG_ERR_WRITE;
+            break;
+        case 0:
+            info_msg = MSG_OK;
+        default: break;
+        }
+    }
+    uart_send_packet(&info_msg, TYPE_INFO, 1);
 }
 
 static void send_err_packet(uint8_t data) {
@@ -460,6 +483,9 @@ void ibutton_process_command() {
             break;
         case TYPE_GET_SETTINGS:
             send_settings_data();
+            break;
+        case TYPE_WRITE_SETTINGS:
+            write_settings_data();
             break;
         case TYPE_ERASE_ALL:
             segment_erase(0);

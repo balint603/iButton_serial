@@ -32,10 +32,13 @@ enum UART_cmd_type{TYPE_ECHO = 1, TYPE_INFO, TYPE_TEST,
 
 /** UART error codes, used in TYPE_INFO, or response commands as data values. */
 #define MSG_ERR_TIMEOUT     0x69
+#define MSG_OK              0x00
 #define MSG_ERR_CRC         0x02
 #define MSG_ERR_SIZE        0x03
 #define MSG_ERR_RANGE       0x04
-#define MSG_BOOT            0x05
+#define MSG_ERR_WRITE       0x05
+#define MSG_ERR_DATA        0x06
+#define MSG_BOOT            0x07
 
 #define MSG_KEY_TOUCHED     0x0A
 #define MSG_KEY_TOUCHED_ILL 0x0B
