@@ -875,6 +875,8 @@ static void check_touch(inputs_t input) {
         }
         msg_type = MSG_OPEN_BUTTON;
         break;
+    default:
+        return;
     }
     msg_data[0] = msg_type;
     copy_wordarr_to_bytearr(iButton_data.key_code, &msg_data[1], 3);
