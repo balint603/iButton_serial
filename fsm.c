@@ -283,11 +283,7 @@ void ibutton_fsm_init(){
     refresh_timing();
 
     if(!compare_key(data_ff, (uint16_t*)iButton_data.master_key_code_ptr)){     // Master code place empty?
-        //uart_send_str("First start.", 1);
-
         // todo memory check
-
-        //uart_send_str("Please touch a master key!", 1);
         LED_TURN_ON_GR;
         LED_TURN_ON_RE;
         user_info_mode = INFO_BOTH_ONLY_LIGHT;
@@ -391,7 +387,7 @@ void ibutton_user_info_mode_service(){
 /** Send settings via UART. */
 void send_settings_data() {
     uint8_t *data = (uint8_t*)(FLASH_MASTER_CODE + SETTINGS_START);
-    uart_send_packet(data, TYPE_GET_SETTINGS_RE, SETTINGS_RANGE * 2);
+    uart_send_packet(data, (TYPE_GET_SETTINGS_RE), SETTINGS_RANGE * 2);
 }
 
 /** Overwrite settings. */
@@ -414,11 +410,7 @@ void write_settings_data() {
         default: break;
         }
     }
-    uart_send_packet(&info_msg, TYPE_INFO, 1);
-}
-
-static void send_err_packet(uint8_t data) {
-    uart_send_packet(&data, TYPE_INFO, 1);
+    uart_send_packet(&info_msg, (TYPE_WRITE_SETTINGS_RE), 1);
 }
 
 /** \brief Procedure to make pointer from a two byte large address array. LSB first!. */
@@ -436,30 +428,43 @@ uint8_t *make_address(uint8_t addr_arr[]) {
  * First, make address from data.
  * */
 static void process_get_segment(packet_t *RX_packet) {
+    uint8_t msg;
     uint8_t *flash_ptr = make_address(RX_packet->data);
-    if ( (uint8_t*)SEGMENT_0 <= flash_ptr && flash_ptr <= (uint8_t*)(SEGMENT_8 + 512) )
+    if ( (uint8_t*)SEGMENT_0 <= flash_ptr && flash_ptr <= (uint8_t*)(SEGMENT_8 + 512) ) {
         uart_send_flash_segment(flash_ptr);
-    else
-        send_err_packet(MSG_ERR_RANGE);
+    }
+    else {
+        msg = MSG_ERR_RANGE;
+        uart_send_packet(&msg, TYPE_INFO, 1);
+    }
 }
 
 /**
  * Process the TYPE_WRITE_FLASHSEGM command.
  */
 void process_write_to_flash(packet_t *RX_packet) {
-    uint8_t *flash_ptr = make_address(RX_packet->data); // TODO RESPONSE
-    /*if ( (uint8_t*)SEGMENT_0 <= flash_ptr && flash_ptr <= (uint8_t*)(SEGMENT_8 + 512) )
-        //flash_write_data(data, size, address)   // TODO response
-    else
-        send_err_packet(ERR_RANGE);*/
+    uint8_t msg_type = MSG_ERR_RANGE;
+    uint8_t *flash_ptr = make_address(RX_packet->data);
+    if ( (uint8_t*)SEGMENT_0 <= flash_ptr && flash_ptr <= (uint8_t*)(SEGMENT_8 + 512) ) {
+        // COPY TO THE MEMORY, without the first two byte: they are address.
+        if ( !flash_write_data((uint16_t*)(&(RX_packet->data[2])), (RX_packet->data_size - 2) / 2, (uint16_t)flash_ptr) ) {
+            msg_type = MSG_OK;
+        } else {
+            msg_type = MSG_ERR_WRITE;
+        }
+    }
+    uart_send_packet(&msg_type, TYPE_WRITE_FLASHSEGM_RE, 1);
 }
 
 /** \brief Processing incoming UART commands.
  * See defined commands.
  * */
 void ibutton_process_command() {
+    uint8_t msg;
     if ( RX_packet.data_size > RX_DATA_SIZE ) {
-        send_err_packet(MSG_ERR_SIZE);
+        msg = MSG_ERR_SIZE;
+        uart_send_packet(&msg, TYPE_INFO, 1);
+        RX_is_packet = 0;
         return;
     }
 
@@ -470,7 +475,10 @@ void ibutton_process_command() {
     crc_do(preamble, 2, &crc_val);
     crc_do(RX_packet.data, RX_packet.data_size, &crc_val);
     if ( crc_val != RX_packet.crc ) {               // CRC check
-        send_err_packet(MSG_ERR_CRC);
+        msg = MSG_ERR_CRC;
+        uart_send_packet(&msg, TYPE_INFO, 1);
+        RX_is_packet = 0;
+        return;
     }
     switch ( RX_packet.type_b ) {                   // TYPE selector
         case TYPE_ECHO:
@@ -495,10 +503,12 @@ void ibutton_process_command() {
             delete_or_add_key((uint16_t*)RX_packet.data);
             break;
         case TYPE_GET_FLASHSEGM:
-            if ( RX_packet.data_size == 2 )
+            if ( RX_packet.data_size == 2 ) {
                 process_get_segment(&RX_packet);
-            else
-                send_err_packet(MSG_ERR_SIZE);
+            } else {
+                msg = MSG_ERR_SIZE;
+                uart_send_packet(&msg, TYPE_INFO, 1);
+            }
             break;
         case TYPE_WRITE_FLASHSEGM:
             process_write_to_flash(&RX_packet);

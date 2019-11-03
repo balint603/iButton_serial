@@ -14,8 +14,8 @@
 #define UART_CLK 1500000                                                      // SMCLK (Hz)
 #define BAUD_SETTING_VALUE (UART_CLK / UART_BAUD_RATE)
 
-#define RX_DATA_SIZE 128
-#define UART_TIMEOUT_MS 200
+#define RX_DATA_SIZE 130
+#define UART_TIMEOUT_MS 400
 
 #define TX_BUFFER_SIZE 50
 
@@ -28,6 +28,7 @@ enum UART_cmd_type{TYPE_ECHO = 1, TYPE_INFO, TYPE_TEST,
                    TYPE_GET_SETTINGS, TYPE_GET_FLASHSEGM, TYPE_ERASE_ALL,   // Not used by E-gate, used by reader program
                    TYPE_GET_SETTINGS_RE, TYPE_GET_FLASHSEGM_RE, TYPE_ERASE_ALL_RE, // E-gate response with data
                    TYPE_WRITE_SETTINGS, TYPE_WRITE_FLASHSEGM, TYPE_WRITE_A_KEY, // No response containing data, but error / ok info message
+                   TYPE_WRITE_SETTINGS_RE, TYPE_WRITE_FLASHSEGM_RE, TYPE_WRITE_A_KEY_RE
                    };
 
 /** UART error codes, used in TYPE_INFO, or response commands as data values. */
