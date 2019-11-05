@@ -27,6 +27,7 @@
 #define INFO_SHORT      200
 #define INFO_LONG       1600
 
+static const uint16_t ERASE_MEM_KEY = 0xE2A3;
 
 /** \brief Special object for FSM.
  *  Contain informations about keys, operating modes.
@@ -456,6 +457,19 @@ void process_write_to_flash(packet_t *RX_packet) {
     uart_send_packet(&msg_type, TYPE_WRITE_FLASHSEGM_RE, 1);
 }
 
+/** \brief Erase memory from uart with key. */
+void process_erase_all(packet_t *RX_packet) {
+    uint8_t msg;
+    uint16_t key_got = (uint16_t)make_address(RX_packet->data);
+    if ( key_got == ERASE_MEM_KEY ) {
+        segment_erase(0);
+        msg = MSG_OK;
+    } else {
+        msg = MSG_ERR_DATA;
+    }
+    uart_send_packet(&msg, TYPE_ERASE_ALL_RE, 1);
+}
+
 /** \brief Processing incoming UART commands.
  * See defined commands.
  * */
@@ -496,8 +510,7 @@ void ibutton_process_command() {
             write_settings_data();
             break;
         case TYPE_ERASE_ALL:
-            segment_erase(0);
-            uart_send_packet(0, TYPE_ERASE_ALL_RE, 1);
+            process_erase_all(&RX_packet);
             break;
         case TYPE_WRITE_A_KEY:
             delete_or_add_key((uint16_t*)RX_packet.data);
