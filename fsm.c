@@ -28,6 +28,7 @@
 #define INFO_LONG       1600
 
 static const uint16_t ERASE_MEM_KEY = 0xE2A3;
+static const uint16_t FACTORY_RESET_MEM_KEY = 0xFA41;
 
 /** \brief Special object for FSM.
  *  Contain informations about keys, operating modes.
@@ -463,6 +464,11 @@ void process_erase_all(packet_t *RX_packet) {
     uint16_t key_got = (uint16_t)make_address(RX_packet->data);
     if ( key_got == ERASE_MEM_KEY ) {
         segment_erase(0);
+        msg = MSG_OK;
+    } else if ( key_got == FACTORY_RESET_MEM_KEY ) {
+        segment_erase(0);
+        flash_init();
+        ibutton_fsm_init();
         msg = MSG_OK;
     } else {
         msg = MSG_ERR_DATA;
